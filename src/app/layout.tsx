@@ -3,7 +3,7 @@ import { ReactNode } from "react";
 
 import "./globals.css";
 
-import { AuthProvider } from "@/components/providers/auth-provider";
+import ClientLayout from "@/components/providers/client-layout";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
@@ -16,12 +16,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <AuthProvider>
+        <ClientLayout>
           {children}
-        </AuthProvider>
+        </ClientLayout>
         <Toaster richColors position="top-right" />
       </body>
     </html>
   );
 }
-

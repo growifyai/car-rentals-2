@@ -28,7 +28,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "zion-car-rentals.onrender.com"
+        hostname: "zion-car-rentals-backend.up.railway.app"
       },
       {
         protocol: "http",

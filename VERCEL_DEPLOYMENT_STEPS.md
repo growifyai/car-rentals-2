@@ -36,7 +36,7 @@ git push origin main
 In Vercel dashboard, go to **Settings → Environment Variables** and add:
 
 ```
-NEXT_PUBLIC_API_BASE_URL = https://zion-car-rentals.onrender.com
+NEXT_PUBLIC_API_BASE_URL = https://zion-car-rentals-backend.up.railway.app
 ```
 
 Optional (for Razorpay payments):
@@ -62,11 +62,11 @@ NEXT_PUBLIC_RAZORPAY_KEY_ID = your_razorpay_key
 
 ### Image Domains Configured:
 - `images.unsplash.com` (placeholder images)
-- `zion-car-rentals.onrender.com` (backend images)
+- `zion-car-rentals-backend.up.railway.app` (backend images)
 - `localhost` (development)
 
 ### Backend Integration:
-- API Base URL: `https://zion-car-rentals.onrender.com`
+- API Base URL: `https://zion-car-rentals-backend.up.railway.app`
 - CORS enabled on backend
 - File uploads handled via `/uploads` route
 
@@ -138,7 +138,7 @@ git push
 # 2. Go to Vercel and import project
 
 # 3. Add environment variable:
-# NEXT_PUBLIC_API_BASE_URL = https://zion-car-rentals.onrender.com
+# NEXT_PUBLIC_API_BASE_URL = https://zion-car-rentals-backend.up.railway.app
 
 # 4. Click Deploy
 

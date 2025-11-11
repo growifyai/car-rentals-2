@@ -6,7 +6,7 @@ This document provides step-by-step instructions to deploy the Zion Car Rentals 
 
 - A Vercel account ([sign up](https://vercel.com))
 - Your code pushed to a Git repository (GitHub, GitLab, or Bitbucket)
-- Access to your backend API at `https://zion-car-rentals.onrender.com`
+- Access to your backend API at `https://zion-car-rentals-backend.up.railway.app`
 
 ## Deployment Steps
 
@@ -32,7 +32,7 @@ Add these environment variables in Vercel dashboard:
 #### Required Environment Variables:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://zion-car-rentals.onrender.com
+NEXT_PUBLIC_API_BASE_URL=https://zion-car-rentals-backend.up.railway.app
 ```
 
 #### Optional (for payments):
@@ -60,7 +60,7 @@ Vercel should auto-detect these settings from `package.json`:
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `NEXT_PUBLIC_API_BASE_URL` | Backend API URL | Yes | `https://zion-car-rentals.onrender.com` |
+| `NEXT_PUBLIC_API_BASE_URL` | Backend API URL | Yes | `https://zion-car-rentals-backend.up.railway.app` |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay key for payments | No | - |
 
 ## Post-Deployment
@@ -84,7 +84,7 @@ Vercel should auto-detect these settings from `package.json`:
 ### Images Not Loading
 
 If images aren't loading from the backend:
-- Verify that `zion-car-rentals.onrender.com` is added to Next.js config
+- Verify that `zion-car-rentals-backend.up.railway.app` is added to Next.js config
 - Check browser console for CORS errors
 - Ensure backend `/uploads` route is accessible
 

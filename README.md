@@ -54,7 +54,7 @@ A modern car rental platform built with Next.js 14, React, and TypeScript. This 
 ## 📋 Prerequisites
 
 - Node.js 18+ and npm
-- Backend API running at `https://zion-car-rentals.onrender.com`
+- Backend API running at `https://zion-car-rentals-backend.up.railway.app`
 - Razorpay account (for payment processing)
 
 ## 🛠️ Installation
@@ -79,7 +79,7 @@ Create a `.env.local` file in the root directory:
 
 ```env
 # API Configuration
-NEXT_PUBLIC_API_BASE_URL=https://zion-car-rentals.onrender.com
+NEXT_PUBLIC_API_BASE_URL=https://zion-car-rentals-backend.up.railway.app
 
 # Razorpay Configuration (optional)
 NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id

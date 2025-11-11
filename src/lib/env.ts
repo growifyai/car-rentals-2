@@ -1,6 +1,6 @@
 export function getApiBaseUrl() {
   // Always use the production API URL as specified
-  const productionUrl = "https://zion-car-rentals.onrender.com";
+  const productionUrl = "https://zion-car-rentals-backend.up.railway.app";
   
   if (typeof window === "undefined") {
     // Server-side: check environment variables first, fallback to production URL

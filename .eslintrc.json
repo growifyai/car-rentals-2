@@ -1,0 +1,9 @@
+{
+  "extends": ["next", "next/core-web-vitals"],
+  "rules": {
+    "react/jsx-sort-props": "off",
+    "react/no-unescaped-entities": "off",
+    "@next/next/no-img-element": "off"
+  }
+}
+

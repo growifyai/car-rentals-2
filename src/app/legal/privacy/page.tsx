@@ -20,7 +20,7 @@ export default function PrivacyPage() {
               <p>
                 This Privacy Policy describes how Zion car rental service and its affiliates (collectively "Zion car
                 rental service, we, our, us") collect, use, share, protect or otherwise process your information/ personal
-                data through our website https://car-rentals-ctio.vercel.app (hereinafter referred to as Platform).
+                data through our website https://car-rentals-2-production.up.railway.app (hereinafter referred to as Platform).
               </p>
               <p>
                 Please note that you may be able to browse certain sections of the Platform without registering with us.

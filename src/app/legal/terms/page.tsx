@@ -25,7 +25,7 @@ export default function TermsPage() {
             <p>
               This document is published in accordance with the provisions of Rule 3 (1) of the Information
               Technology (Intermediaries guidelines) Rules, 2011 that require publishing the rules and
-              regulations, privacy policy and Terms of Use for access or usage of domain name https://carrentals-ctio.vercel.app ('Website'), including the related mobile site and mobile application
+              regulations, privacy policy and Terms of Use for access or usage of domain name https://car-rentals-2-production.up.railway.app ('Website'), including the related mobile site and mobile application
               (hereinafter referred to as 'Platform').
             </p>
 

@@ -26,9 +26,6 @@ export function SiteFooter() {
               <a href="/#fleet" className="block text-muted-foreground transition-colors hover:text-primary">
                 Our Fleet
               </a>
-              <a href="/locations" className="block text-muted-foreground transition-colors hover:text-primary">
-                Locations
-              </a>
               <a href="/contact" className="block text-muted-foreground transition-colors hover:text-primary">
                 Contact
               </a>
@@ -46,9 +43,6 @@ export function SiteFooter() {
               </a>
               <a href="/legal/privacy" className="block text-muted-foreground transition-colors hover:text-primary">
                 Privacy Policy
-              </a>
-              <a href="/support" className="block text-muted-foreground transition-colors hover:text-primary">
-                Help Center
               </a>
             </div>
           </div>

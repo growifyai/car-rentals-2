@@ -23,7 +23,7 @@ export function SiteFooter() {
               <a href="/about" className="block text-muted-foreground transition-colors hover:text-primary">
                 About Us
               </a>
-              <a href="/#fleet" className="block text-muted-foreground transition-colors hover:text-primary">
+              <a href="/cars" className="block text-muted-foreground transition-colors hover:text-primary">
                 Our Fleet
               </a>
               <a href="/contact" className="block text-muted-foreground transition-colors hover:text-primary">

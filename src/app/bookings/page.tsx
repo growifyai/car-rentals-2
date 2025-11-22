@@ -13,8 +13,8 @@ export default function BookingsDashboardPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
       <main className="flex-1">
-        <div className="container mx-auto space-y-8 px-4 py-10">
-          <header className="space-y-2">
+        <div className="container mx-auto space-y-8 px-4 pt-16 pb-10">
+          <header className="space-y-2 mt-8">
             <h1 className="text-3xl font-semibold text-foreground">My bookings</h1>
             <p className="text-sm text-muted-foreground">
               Track your luxury rentals, complete pending actions, and review trip summaries.

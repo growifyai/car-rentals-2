@@ -33,7 +33,7 @@ export function LoginForm() {
       const session = await login(values);
       setSession(session);
       toast.success(`Welcome back, ${session.user.name}!`);
-      router.push(session.user.role === "admin" ? "/admin/dashboard" : "/dashboard/bookings");
+      router.push(session.user.role === "admin" ? "/admin/dashboard" : "/bookings");
     } catch (error) {
       console.error(error);
       const message = (error as { message?: string }).message ?? "Unable to login. Please try again.";

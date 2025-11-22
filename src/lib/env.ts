@@ -11,11 +11,3 @@ export function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? productionUrl;
 }
 
-export function getRazorpayKeyId() {
-  if (typeof window === "undefined") {
-    return process.env.RAZORPAY_KEY_ID ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
-  }
-
-  return process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
-}
-

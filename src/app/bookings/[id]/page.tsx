@@ -18,8 +18,8 @@ export default function BookingDetailPage({ params }: BookingDetailPageProps) {
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
       <main className="flex-1">
-        <div className="container mx-auto space-y-8 px-4 py-10">
-          <header className="space-y-2">
+        <div className="container mx-auto space-y-8 px-4 pt-16 pb-10">
+          <header className="space-y-2 mt-8">
             <h1 className="text-3xl font-semibold text-foreground">Booking detail</h1>
             <p className="text-sm text-muted-foreground">
               Review reservation data, delivery preferences, and payment progress.

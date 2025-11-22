@@ -37,7 +37,7 @@ export function RegisterForm() {
       const session = await registerUser(values);
       setSession(session);
       toast.success(`Welcome to Zion Car Rentals, ${session.user.name}!`);
-      router.push("/dashboard/bookings");
+      router.push("/bookings");
     } catch (error) {
       console.error(error);
       const message = (error as { message?: string }).message ?? "Registration failed. Please try again.";

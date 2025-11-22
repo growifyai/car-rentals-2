@@ -26,7 +26,6 @@ export function ProfileClient() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'personal' | 'bookings'>('personal');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -117,39 +116,25 @@ export function ProfileClient() {
             <h1 className="text-2xl font-semibold text-foreground">{user.name}</h1>
             <p className="text-muted-foreground">{user.email}</p>
           </div>
-          <Button onClick={handleLogout} variant="destructive" size="sm">
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </Card>
-
-      {/* Vertical Navigation Menu */}
-      <Card className="p-0">
-        <div className="space-y-0">
-          <button 
-            onClick={() => setActiveTab('personal')}
-            className={`w-full flex items-center space-x-3 px-6 py-4 text-left hover:bg-muted/50 transition-colors ${
-              activeTab === 'personal' ? 'bg-muted/30 border-r-2 border-primary' : ''
-            }`}
-          >
-            <User className="h-5 w-5 text-muted-foreground" />
-            <span className="text-foreground font-medium">Personal</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('bookings')}
-            className={`w-full flex items-center space-x-3 px-6 py-4 text-left hover:bg-muted/50 transition-colors ${
-              activeTab === 'bookings' ? 'bg-muted/30 border-r-2 border-primary' : ''
-            }`}
-          >
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
-            <span className="text-foreground font-medium">Bookings</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <Button 
+              onClick={() => router.push('/bookings')} 
+              variant="outline"
+              size="sm"
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Bookings
+            </Button>
+            <Button onClick={handleLogout} variant="destructive" size="sm">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </Card>
 
       {/* Content Area */}
-      {activeTab === 'personal' && (
+      <div>
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
@@ -290,33 +275,7 @@ export function ProfileClient() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {activeTab === 'bookings' && (
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center text-xl">
-              <CreditCard className="h-5 w-5 mr-2" />
-              Booking History
-            </CardTitle>
-            <CardDescription>
-              View and manage your car rental bookings
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="py-8">
-            <div className="text-center">
-              <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-2">No bookings found</p>
-              <p className="text-sm text-muted-foreground mb-6">
-                Your booking history will appear here once you make a reservation.
-              </p>
-              <Button asChild>
-                <a href="/cars">Browse Cars</a>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      </div>
     </div>
   );
 }

@@ -45,8 +45,8 @@ export function NotificationBell() {
       <Link href="/notifications">
         <Bell className="size-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-            {unreadCount}
+          <span className="absolute -top-1 -right-1 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground px-1">
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </Link>

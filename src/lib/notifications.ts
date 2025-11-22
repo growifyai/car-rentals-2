@@ -32,3 +32,10 @@ export async function markAllNotificationsRead(token: string) {
   });
 }
 
+export async function deleteNotification(notificationId: string, token: string) {
+  return apiFetch<{ message: string }>(`/api/notifications/${notificationId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+

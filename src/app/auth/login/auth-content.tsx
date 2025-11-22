@@ -17,7 +17,7 @@ export function AuthContent() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace(user.role === "admin" ? "/admin/dashboard" : "/dashboard/bookings");
+      router.replace(user.role === "admin" ? "/admin/dashboard" : "/bookings");
     }
   }, [isLoading, router, user]);
 

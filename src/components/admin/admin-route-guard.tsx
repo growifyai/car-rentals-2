@@ -18,7 +18,7 @@ export function AdminRouteGuard({ children }: AdminRouteGuardProps) {
 
   useEffect(() => {
     if (!isLoading && user && user.role !== "admin") {
-      router.replace("/dashboard/bookings");
+      router.replace("/bookings");
     }
   }, [isLoading, user, router]);
 
@@ -52,7 +52,7 @@ export function AdminRouteGuard({ children }: AdminRouteGuardProps) {
             <p className="text-muted-foreground mb-4">
               You don&apos;t have permission to access the admin dashboard.
             </p>
-            <Button onClick={() => router.push("/dashboard/bookings")}>
+            <Button onClick={() => router.push("/bookings")}>
               Go to Customer Dashboard
             </Button>
           </CardContent>

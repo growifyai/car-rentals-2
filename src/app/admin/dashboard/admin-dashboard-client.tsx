@@ -141,7 +141,7 @@ export function AdminDashboardClient() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/bookings/${booking.id}`)}>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/bookings/${booking.id}`)}>
                   View submission
                 </Button>
                 {booking.status === "pending" ? (

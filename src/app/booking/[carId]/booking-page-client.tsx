@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { CarDetail } from "@/components/CarDetail";
-import { BookingDetailClient } from "@/app/dashboard/bookings/[id]/booking-detail-client";
+import { BookingDetailClient } from "@/app/bookings/[id]/booking-detail-client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { CarDetailData } from "@/types/cars";
 

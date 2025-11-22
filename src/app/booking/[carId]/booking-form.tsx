@@ -273,7 +273,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
         onBookingSuccess(bookingId);
       } else {
         // Fallback to redirect if no callback provided
-        router.push("/dashboard/bookings");
+        router.push("/bookings");
       }
     } catch (error) {
       console.error(error);

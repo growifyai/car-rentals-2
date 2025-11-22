@@ -13,37 +13,65 @@ function calculateDeposit(type: string) {
   return STANDARD_DEPOSIT;
 }
 
+import { getApiBaseUrl } from "./env";
+
 function isValidImageUrl(url: string | undefined | null): boolean {
   if (!url) return false;
   return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
 }
 
+function normalizeImageUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined;
+  // If already a full URL, return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // If relative path starting with /, prepend backend base URL
+  if (url.startsWith('/')) {
+    return `${getApiBaseUrl()}${url}`;
+  }
+  // Otherwise, assume it's a relative path and prepend backend URL with /uploads
+  return `${getApiBaseUrl()}/uploads/${url}`;
+}
+
 export function mapApiCarToCard(car: ApiCar): CarCardData {
+  if (!car) {
+    throw new Error("Car data is null or undefined");
+  }
+
+  if (!car._id) {
+    console.warn("Car _id is missing:", car);
+    throw new Error("Car data is missing required _id field");
+  }
+
+  const carType = car.type || "normal";
+  const defaultPricing = {
+    price12hr: (car.pricePerHour || 0) * 12,
+    price24hr: (car.pricePerHour || 0) * 24,
+    price36hr: (car.pricePerHour || 0) * 36,
+    price48hr: (car.pricePerHour || 0) * 48,
+    price60hr: (car.pricePerHour || 0) * 60,
+    price72hr: (car.pricePerHour || 0) * 72,
+  };
+
   return {
     id: car._id,
-    name: car.carName || car.name,
-    model: car.model,
-    brand: car.brand,
-    year: car.year,
-    type: car.type,
-    pricing: car.pricing || {
-      price12hr: (car.pricePerHour || 0) * 12,
-      price24hr: (car.pricePerHour || 0) * 24,
-      price36hr: (car.pricePerHour || 0) * 36,
-      price48hr: (car.pricePerHour || 0) * 48,
-      price60hr: (car.pricePerHour || 0) * 60,
-      price72hr: (car.pricePerHour || 0) * 72,
-    },
+    name: car.carName || car.name || "Unknown Car",
+    model: car.model || "",
+    brand: car.brand || "",
+    year: car.year || new Date().getFullYear(),
+    type: carType,
+    pricing: car.pricing || defaultPricing,
     driverAvailable: car.driverAvailable || false,
     driverChargesPerDay: car.driverChargesPerDay || 0,
-    imageUrl: car.imageUrl || undefined,
+    imageUrl: normalizeImageUrl(car.imageUrl),
     features: car.features ?? [],
-    available: car.available,
-    depositAmount: car.securityDeposit || calculateDeposit(car.type),
-    gearType: car.gearType,
-    fuelType: car.fuelType,
-    seatingCapacity: car.seatingCapacity,
-    pricePerHour: car.pricePerHour || (car.pricing?.price12hr || 0) / 12,
+    available: car.available !== undefined ? car.available : true,
+    depositAmount: car.securityDeposit || calculateDeposit(carType),
+    gearType: car.gearType || "manual",
+    fuelType: car.fuelType || "petrol",
+    seatingCapacity: car.seatingCapacity || 5,
+    pricePerHour: car.pricePerHour || (car.pricing?.price12hr || defaultPricing.price12hr) / 12,
   };
 }
 

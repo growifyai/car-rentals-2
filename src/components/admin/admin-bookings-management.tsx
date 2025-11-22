@@ -43,10 +43,11 @@ interface BookingDetail {
   };
   carId: {
     _id: string;
-    name: string;
-    model: string;
-    type: string;
-  };
+    name?: string;
+    carName?: string;
+    model?: string;
+    type?: string;
+  } | string | null;
   startTime: string;
   endTime: string;
   duration: number;
@@ -95,6 +96,25 @@ const STATUS_FILTERS = [
   { label: "Declined", value: "declined" },
 ];
 
+// Helper function to safely get car name
+function getCarName(carId: BookingDetail['carId']): string {
+  if (!carId) return "Car not found";
+  if (typeof carId === 'string') return "Car not found";
+  if (typeof carId === 'object') {
+    return carId.name || carId.carName || "Car not found";
+  }
+  return "Car not found";
+}
+
+// Helper function to safely get car model
+function getCarModel(carId: BookingDetail['carId']): string {
+  if (!carId || typeof carId === 'string') return "N/A";
+  if (typeof carId === 'object') {
+    return carId.model || "N/A";
+  }
+  return "N/A";
+}
+
 export function AdminBookingsManagement() {
   const { token } = useAuth();
   const [bookings, setBookings] = useState<BookingDetail[]>([]);
@@ -116,6 +136,11 @@ export function AdminBookingsManagement() {
       
       try {
         const response = await apiFetch<{ bookings: BookingDetail[] }>("/api/bookings", { token });
+        console.log("Admin bookings API response:", response);
+        if (response.bookings && response.bookings.length > 0) {
+          console.log("Sample booking carId:", response.bookings[0].carId);
+          console.log("CarId type:", typeof response.bookings[0].carId);
+        }
         setBookings(response.bookings);
         setFilteredBookings(response.bookings);
       } catch (err) {
@@ -140,13 +165,14 @@ export function AdminBookingsManagement() {
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(booking => 
-        booking.customerId.name.toLowerCase().includes(query) ||
-        (booking.carId?.name?.toLowerCase().includes(query) ?? false) ||
-        booking.fullName.toLowerCase().includes(query) ||
-        booking.email.toLowerCase().includes(query) ||
-        booking.mobile.includes(query)
-      );
+      filtered = filtered.filter(booking => {
+        const carName = getCarName(booking.carId).toLowerCase();
+        return booking.customerId.name.toLowerCase().includes(query) ||
+          carName.includes(query) ||
+          booking.fullName.toLowerCase().includes(query) ||
+          booking.email.toLowerCase().includes(query) ||
+          booking.mobile.includes(query);
+      });
     }
 
     setFilteredBookings(filtered);
@@ -287,7 +313,7 @@ export function AdminBookingsManagement() {
         <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
           <CardTitle className="text-slate-800 dark:text-slate-200">All Bookings</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="px-6 py-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50 dark:bg-slate-800">
@@ -305,23 +331,18 @@ export function AdminBookingsManagement() {
                 {filteredBookings.map((booking) => (
                   <TableRow key={booking._id} className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <TableCell className="py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex size-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-sm font-bold text-white shrink-0">
-                          {booking.customerId.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerId.name}</p>
-                          <p className="text-sm text-slate-500 dark:text-slate-400 break-words">{booking.email}</p>
-                        </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerId.name}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 break-words">{booking.email}</p>
                       </div>
                     </TableCell>
                     <TableCell className="py-4">
                       <div className="space-y-1">
                         <p className="font-semibold text-slate-900 dark:text-white">
-                          {booking.carId?.name || "Car not found"}
+                          {getCarName(booking.carId)}
                         </p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {booking.carId?.model || "N/A"}
+                          {getCarModel(booking.carId)}
                         </p>
                       </div>
                     </TableCell>
@@ -498,7 +519,7 @@ function BookingActionModal({
                     <div>
                       <p className="text-xs text-slate-400 mb-1">Vehicle</p>
                       <p className="text-sm font-medium text-white">
-                        {booking.carId?.name || "Car not found"} {booking.carId?.model || ""}
+                        {`${getCarName(booking.carId)} ${getCarModel(booking.carId) !== "N/A" ? getCarModel(booking.carId) : ""}`.trim()}
                       </p>
                     </div>
                     <div>

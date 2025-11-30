@@ -119,7 +119,7 @@ export function NotificationsClient() {
         next.delete(notificationId);
         return next;
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete notification", error);
       // Revert on error - restore the notification
       if (notification) {
@@ -134,12 +134,18 @@ export function NotificationsClient() {
       });
       
       // Show specific error message
-      if (error?.status === 404) {
-        toast.error("Delete endpoint not found. Please contact support.");
-      } else if (error?.status === 405) {
-        toast.error("Delete method not allowed. The backend may not support deletion.");
+      if (error && typeof error === 'object' && 'status' in error) {
+        const apiError = error as { status: number };
+        if (apiError.status === 404) {
+          toast.error("Delete endpoint not found. Please contact support.");
+        } else if (apiError.status === 405) {
+          toast.error("Delete method not allowed. The backend may not support deletion.");
+        } else {
+          const errorMsg = error instanceof Error ? error.message : "Failed to delete notification";
+          toast.error(errorMsg);
+        }
       } else {
-        const errorMsg = error?.message || "Failed to delete notification";
+        const errorMsg = error instanceof Error ? error.message : "Failed to delete notification";
         toast.error(errorMsg);
       }
     }

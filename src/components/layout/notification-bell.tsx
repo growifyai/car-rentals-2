@@ -41,11 +41,11 @@ export function NotificationBell() {
   }
 
   return (
-    <Button asChild variant="ghost" size="icon" className="relative">
-      <Link href="/notifications">
+    <Button asChild variant="ghost" size="sm" className="h-auto">
+      <Link href="/notifications" className="flex items-center gap-2 px-2 py-1.5">
         <Bell className="size-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground px-1">
+          <span className="flex min-w-[20px] h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground px-1.5">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}

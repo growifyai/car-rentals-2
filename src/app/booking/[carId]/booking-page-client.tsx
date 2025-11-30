@@ -43,7 +43,7 @@ export function BookingPageClient({ car }: BookingPageClientProps) {
       
       {modalState !== "closed" && (
         <Dialog open={true} onOpenChange={(open) => !open && handleCloseModal()}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl w-[calc(100%-2rem)]">
             {modalState === "form" && (
               <>
                 <DialogHeader>

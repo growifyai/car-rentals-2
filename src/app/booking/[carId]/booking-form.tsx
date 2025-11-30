@@ -15,11 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createBooking } from "@/lib/bookings";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createBooking, createRazorpayOrder, verifyRazorpayPayment } from "@/lib/bookings";
 import type { CarDetailData } from "@/types/cars";
+import { getApiBaseUrl } from "@/lib/env";
 import { toast } from "sonner";
-import { CameraCapture } from "@/components/CameraCapture";
 import { 
   Calendar, 
   Clock, 
@@ -29,11 +29,9 @@ import {
   Mail, 
   FileText, 
   CreditCard, 
-  Upload,
   AlertCircle,
   CheckCircle,
-  IndianRupee,
-  Camera
+  IndianRupee
 } from "lucide-react";
 
 const DURATIONS = [12, 24, 36, 48, 60, 72]; // Maximum 3 days (72 hours)
@@ -53,21 +51,11 @@ type BookingFormValues = {
   email: string;
   mobile: string;
   occupation: string;
-  reference1Name: string;
-  reference1Mobile: string;
-  reference2Name: string;
-  reference2Mobile: string;
   drivingLicenseNumber: string;
   licenseExpiryDate: string;
-  depositType: "bike" | "cash" | "online";
+  depositType: "bike" | "cash";
   bikeDetails?: string;
   withDriver: boolean;
-  homeDelivery: boolean;
-  deliveryAddress?: string;
-  deliveryDistance?: number;
-  drivingLicense: FileList;
-  aadharCard: FileList;
-  livePhoto: FileList;
 };
 
 const defaultValues: Partial<BookingFormValues> = {
@@ -75,7 +63,6 @@ const defaultValues: Partial<BookingFormValues> = {
   guardianRelation: "S/o",
   depositType: "cash",
   withDriver: false,
-  homeDelivery: false,
 };
 
 interface BookingFormProps {
@@ -124,14 +111,17 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const totalSteps = 5;
+  const totalSteps = 4;
+  const [nonRefundableAccepted, setNonRefundableAccepted] = useState(false);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [availabilityInfo, setAvailabilityInfo] = useState<{ available: boolean; nextAvailableStartTime?: string; maxDurationHours?: number } | null>(null);
 
   const pricePerPeriod = useMemo(() => car.pricing.price12hr, [car.pricing.price12hr]);
   const depositAmount = useMemo(() => car.depositAmount, [car.depositAmount]);
 
   const duration = form.watch("duration") ?? 12;
   const withDriver = form.watch("withDriver");
+  const depositType = form.watch("depositType");
   
   // Calculate base price based on duration using the pricing tiers
   let totalRental = 0;
@@ -158,8 +148,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     const days = Math.ceil(duration / 24);
     totalRental += car.driverChargesPerDay * days;
   }
-  const homeDelivery = form.watch("homeDelivery");
-  const depositType = form.watch("depositType");
 
   const handleSubmit = async (values: BookingFormValues) => {
     if (!token) {
@@ -167,7 +155,272 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
       return router.push("/auth/login");
     }
 
-    // Validate all fields
+    // If we're on step 4, process payment first
+    if (currentStep === 4) {
+      if (!nonRefundableAccepted) {
+        toast.error("Please accept the non-refundable terms before proceeding with payment");
+        return;
+      }
+
+      if (!availabilityInfo?.available) {
+        toast.error("Car is not available for the selected time. Please select a different time.");
+        return;
+      }
+
+      // Final availability check before payment
+      if (!availabilityInfo || !availabilityInfo.available) {
+        toast.error("Car is not available for the selected time. Please check availability and try again.");
+        return;
+      }
+
+      // Double-check availability with current values
+      try {
+        const finalCheck = await fetch(`${getApiBaseUrl()}/api/cars/${car.id}/check-availability`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            startTime: new Date(values.startTime).toISOString(),
+            duration: values.duration
+          })
+        });
+
+        const finalCheckData = await finalCheck.json();
+        if (!finalCheckData.available) {
+          toast.error(`Car is no longer available. Next available: ${finalCheckData.nextAvailableStartTime ? new Date(finalCheckData.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
+          setAvailabilityInfo(finalCheckData);
+          return;
+        }
+      } catch (error) {
+        console.error('Final availability check error:', error);
+        toast.error('Failed to verify availability. Please try again.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        // Step 1: Create Razorpay order
+        const advanceAmount = car.advanceAmount || 500;
+        const orderResponse = await createRazorpayOrder(
+          car.id,
+          new Date(values.startTime).toISOString(),
+          values.duration,
+          advanceAmount,
+          token
+        );
+
+        if (!orderResponse.success || !orderResponse.orderId) {
+          throw new Error("Failed to create payment order. Please try again.");
+        }
+
+        // Helper functions to manage dialog z-index
+        const lowerDialogZIndex = () => {
+          const dialogOverlay = document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement;
+          const dialogContent = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
+          if (dialogOverlay) {
+            (dialogOverlay as any).__originalZIndex = dialogOverlay.style.zIndex || getComputedStyle(dialogOverlay).zIndex;
+            dialogOverlay.style.zIndex = '1';
+          }
+          if (dialogContent) {
+            (dialogContent as any).__originalZIndex = dialogContent.style.zIndex || getComputedStyle(dialogContent).zIndex;
+            dialogContent.style.zIndex = '1';
+          }
+        };
+
+        const restoreDialogZIndex = () => {
+          const dialogOverlay = document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement;
+          const dialogContent = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
+          if (dialogOverlay && (dialogOverlay as any).__originalZIndex) {
+            dialogOverlay.style.zIndex = (dialogOverlay as any).__originalZIndex;
+          }
+          if (dialogContent && (dialogContent as any).__originalZIndex) {
+            dialogContent.style.zIndex = (dialogContent as any).__originalZIndex;
+          }
+        };
+
+        // Step 2: Open Razorpay checkout
+        const options = {
+          key: orderResponse.keyId,
+          amount: orderResponse.amount,
+          currency: orderResponse.currency,
+          name: "Zion Car Rentals",
+          description: `Advance payment for ${car.name || 'car rental'}`,
+          order_id: orderResponse.orderId,
+          // Ensure Razorpay modal appears above everything
+          config: {
+            display: {
+              blocks: {
+                banks: {
+                  name: "All payment methods",
+                  instruments: [
+                    {
+                      method: "card",
+                    },
+                    {
+                      method: "netbanking",
+                    },
+                    {
+                      method: "wallet",
+                    },
+                    {
+                      method: "upi",
+                    },
+                  ],
+                },
+              },
+              sequence: ["block.banks"],
+              preferences: {
+                show_default_blocks: true,
+              },
+            },
+          },
+          handler: async function (razorpayResponse: any) {
+            try {
+              // Step 3: Verify payment
+              const verificationResponse = await verifyRazorpayPayment(
+                razorpayResponse.razorpay_order_id,
+                razorpayResponse.razorpay_payment_id,
+                razorpayResponse.razorpay_signature,
+                car.id,
+                new Date(values.startTime).toISOString(),
+                values.duration,
+                advanceAmount,
+                token!
+              );
+
+              if (!verificationResponse.success || verificationResponse.paymentStatus !== 'completed') {
+                throw new Error("Payment verification failed. Please contact support.");
+              }
+
+              // Step 4: Create booking after successful payment verification
+              const bookingData = {
+                carId: car.id,
+                startTime: new Date(values.startTime).toISOString(),
+                duration: values.duration,
+                fullName: values.fullName,
+                guardianName: values.guardianName,
+                guardianRelation: values.guardianRelation,
+                residentialAddress: values.residentialAddress,
+                email: values.email,
+                mobile: values.mobile,
+                occupation: values.occupation,
+                drivingLicenseNumber: values.drivingLicenseNumber,
+                licenseExpiryDate: new Date(values.licenseExpiryDate).toISOString(),
+                depositType: values.depositType,
+                bikeDetails: values.depositType === "bike" && values.bikeDetails ? values.bikeDetails : null,
+                withDriver: values.withDriver,
+                homeDelivery: false,
+                deliveryDistance: 0,
+                paymentId: verificationResponse.paymentId,
+                paymentStatus: verificationResponse.paymentStatus
+              };
+
+              const bookingResponse = await createBooking(bookingData, token!);
+              restoreDialogZIndex();
+              toast.success("Booking confirmed! Your advance payment has been processed and the car is now blocked for your selected time.");
+              
+              // Extract booking ID from response if available
+              const bookingId = (bookingResponse as any)?.booking?._id || (bookingResponse as any)?.booking?.id || "";
+              
+              if (onBookingSuccess && bookingId) {
+                onBookingSuccess(bookingId);
+              } else {
+                // Fallback to redirect if no callback provided
+                router.push("/bookings");
+              }
+            } catch (error) {
+              restoreDialogZIndex();
+              console.error("Payment verification/booking creation error:", error);
+              const message = (error as { message?: string }).message ?? "Failed to verify payment or create booking.";
+              toast.error(message);
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          prefill: {
+            name: values.fullName,
+            email: values.email,
+            contact: values.mobile,
+          },
+          theme: {
+            color: "#f97316",
+          },
+          modal: {
+            ondismiss: function() {
+              // Restore dialog z-index when payment is cancelled
+              restoreDialogZIndex();
+              setIsSubmitting(false);
+              toast.error("Payment cancelled");
+            },
+            // Ensure modal is accessible
+            animation: true,
+          },
+        };
+
+        // Lower dialog z-index before opening Razorpay
+        lowerDialogZIndex();
+
+        // Open Razorpay checkout
+        const razorpayWindow = (window as any).Razorpay;
+        if (!razorpayWindow) {
+          restoreDialogZIndex();
+          throw new Error("Razorpay SDK not loaded. Please refresh the page.");
+        }
+        
+        const razorpayInstance = new razorpayWindow(options);
+        
+        // Set high z-index for Razorpay modal after opening
+        razorpayInstance.on('payment.failed', function(response: any) {
+          console.error('Payment failed:', response);
+          restoreDialogZIndex();
+          setIsSubmitting(false);
+          toast.error("Payment failed. Please try again.");
+        });
+        
+        razorpayInstance.open();
+        
+        // Force Razorpay modal to have highest z-index and ensure it's clickable
+        const fixRazorpayZIndex = () => {
+          const razorpayIframe = document.querySelector('iframe[name="razorpay-checkout-frame"]') as HTMLIFrameElement;
+          if (razorpayIframe) {
+            razorpayIframe.style.zIndex = '999999';
+            razorpayIframe.style.pointerEvents = 'auto';
+            razorpayIframe.style.cursor = 'default';
+            
+            // Find and fix all parent containers
+            let parent: HTMLElement | null = razorpayIframe.parentElement;
+            let depth = 0;
+            while (parent && depth < 10) {
+              if (parent.style) {
+                parent.style.zIndex = '999999';
+                parent.style.pointerEvents = 'auto';
+                parent.style.cursor = 'default';
+              }
+              parent = parent.parentElement;
+              depth++;
+            }
+          } else {
+            // Retry if iframe not found yet
+            setTimeout(fixRazorpayZIndex, 50);
+          }
+        };
+        
+        // Fix z-index immediately and retry if needed
+        setTimeout(fixRazorpayZIndex, 50);
+        setTimeout(fixRazorpayZIndex, 200);
+        setTimeout(fixRazorpayZIndex, 500);
+      } catch (error) {
+        console.error(error);
+        const message = (error as { message?: string }).message ?? "Failed to initiate payment. Please try again.";
+        toast.error(message);
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // For steps 1-3, just validate and move to next step
     const errors: string[] = [];
 
     // Basic validations
@@ -180,108 +433,18 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     if (!validateEmail(values.email)) errors.push("Please enter a valid email address");
     if (!validateMobile(values.mobile)) errors.push("Please enter a valid 10-digit mobile number");
     if (!values.occupation || values.occupation.length < 2) errors.push("Occupation must be at least 2 characters");
-    if (!validateName(values.reference1Name)) errors.push("Reference 1 name must be at least 2 characters and contain only letters");
-    if (!validateMobile(values.reference1Mobile)) errors.push("Reference 1 mobile number must be valid");
-    if (!validateName(values.reference2Name)) errors.push("Reference 2 name must be at least 2 characters and contain only letters");
-    if (!validateMobile(values.reference2Mobile)) errors.push("Reference 2 mobile number must be valid");
     if (!validateLicenseNumber(values.drivingLicenseNumber)) errors.push("License number must be at least 5 characters and contain only uppercase letters and numbers");
     if (!values.licenseExpiryDate) errors.push("License expiry date is required");
     if (!validateFutureDate(values.licenseExpiryDate)) errors.push("License must not be expired");
-    if (depositType === "bike" && (!values.bikeDetails || values.bikeDetails.length === 0)) errors.push("Bike details are required when deposit type is bike");
-    if (homeDelivery) {
-      if (!values.deliveryAddress || values.deliveryAddress.length === 0) errors.push("Delivery address is required for home delivery");
-      if (values.deliveryDistance === undefined || values.deliveryDistance === null) {
-        errors.push("Delivery distance is required for home delivery");
-      } else {
-        const numValue = Number(values.deliveryDistance);
-        if (isNaN(numValue) || numValue < 0 || numValue > 100) {
-          errors.push("Please enter a valid delivery distance (0-100 km)");
-        }
-      }
-    }
+    if (depositType === "bike" && (!values.bikeDetails || values.bikeDetails.length === 0)) errors.push("Two wheeler details are required when deposit type is two wheeler");
 
     if (errors.length > 0) {
       toast.error(errors[0]); // Show first error
       return;
     }
 
-    const drivingLicenseFile = values.drivingLicense?.item(0);
-    const aadharFile = values.aadharCard?.item(0);
-    const livePhotoFile = values.livePhoto?.item(0);
-
-    if (!drivingLicenseFile || !aadharFile || !livePhotoFile) {
-      toast.error("Please upload all required documents");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("carId", car.id);
-    formData.append("startTime", new Date(values.startTime).toISOString());
-    formData.append("duration", String(values.duration));
-    formData.append("fullName", values.fullName);
-    formData.append("guardianName", values.guardianName);
-    formData.append("guardianRelation", values.guardianRelation);
-    formData.append("residentialAddress", values.residentialAddress);
-    formData.append("email", values.email);
-    formData.append("mobile", values.mobile);
-    formData.append("occupation", values.occupation);
-    formData.append("reference1Name", values.reference1Name);
-    formData.append("reference1Mobile", values.reference1Mobile);
-    formData.append("reference2Name", values.reference2Name);
-    formData.append("reference2Mobile", values.reference2Mobile);
-    formData.append("drivingLicenseNumber", values.drivingLicenseNumber);
-    formData.append("licenseExpiryDate", new Date(values.licenseExpiryDate).toISOString());
-    formData.append("depositType", values.depositType);
-
-    if (values.depositType === "bike" && values.bikeDetails) {
-      formData.append("bikeDetails", values.bikeDetails);
-    }
-
-    formData.append("withDriver", String(values.withDriver));
-
-    formData.append("homeDelivery", String(values.homeDelivery));
-    if (values.homeDelivery && values.deliveryAddress) {
-      formData.append("deliveryAddress", values.deliveryAddress);
-      // Ensure deliveryDistance is a valid number, default to 0 if invalid
-      let validDistance = 0;
-      if (values.deliveryDistance !== undefined && values.deliveryDistance !== null) {
-        const numValue = Number(values.deliveryDistance);
-        if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
-          validDistance = numValue;
-        }
-      }
-      // Always send a valid number, never NaN
-      formData.append("deliveryDistance", String(validDistance));
-    } else {
-      // If home delivery is not selected, send 0 as default
-      formData.append("deliveryDistance", "0");
-    }
-
-    formData.append("drivingLicense", drivingLicenseFile);
-    formData.append("aadharCard", aadharFile);
-    formData.append("livePhoto", livePhotoFile);
-
-    setIsSubmitting(true);
-    try {
-      const response = await createBooking(formData, token);
-      toast.success("Booking submitted successfully! Our team will review and notify you.");
-      
-      // Extract booking ID from response if available
-      const bookingId = (response as any)?.booking?._id || (response as any)?.booking?.id || "";
-      
-      if (onBookingSuccess && bookingId) {
-        onBookingSuccess(bookingId);
-      } else {
-        // Fallback to redirect if no callback provided
-        router.push("/bookings");
-      }
-    } catch (error) {
-      console.error(error);
-      const message = (error as { message?: string }).message ?? "Failed to submit booking.";
-      toast.error(message);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // If all validations pass, move to next step
+    nextStep();
   };
 
   const nextStep = () => {
@@ -308,28 +471,74 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     switch (step) {
       case 1: return ["startTime", "duration"];
       case 2: return ["fullName", "guardianName", "guardianRelation", "residentialAddress", "email", "mobile", "occupation"];
-      case 3: return ["reference1Name", "reference1Mobile", "reference2Name", "reference2Mobile"];
-      case 4: return ["drivingLicenseNumber", "licenseExpiryDate", "depositType", "bikeDetails", "homeDelivery", "deliveryAddress", "deliveryDistance"];
-      case 5: return ["drivingLicense", "aadharCard", "livePhoto"];
+      case 3: return ["drivingLicenseNumber", "licenseExpiryDate", "depositType", "bikeDetails"];
+      case 4: return []; // Payment step has no form fields
       default: return [];
     }
   };
 
-  const handleCameraCapture = async (file: File) => {
-    // Create a FileList-like object
-    const fileList = {
-      length: 1,
-      item: (index: number) => index === 0 ? file : null,
-      0: file,
-      [Symbol.iterator]: function* () {
-        yield file;
-      }
-    } as FileList;
+  // Check availability when moving to step 4
+  useEffect(() => {
+    if (currentStep === 4) {
+      checkAvailability();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  // Check availability when startTime or duration changes in Step 1
+  useEffect(() => {
+    if (currentStep === 1) {
+      const startTime = form.watch("startTime");
+      const duration = form.watch("duration");
+      
+      // Debounce the check to avoid too many API calls
+      const timeoutId = setTimeout(() => {
+        if (startTime && duration) {
+          checkAvailability();
+        }
+      }, 500); // Wait 500ms after user stops typing/selecting
+
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.watch("startTime"), form.watch("duration"), currentStep]);
+
+  const checkAvailability = async () => {
+    const startTime = form.getValues("startTime");
+    const duration = form.getValues("duration");
     
-    form.setValue("livePhoto", fileList);
-    await form.trigger("livePhoto");
-    setIsCameraOpen(false);
+    if (!startTime || !duration) {
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/cars/${car.id}/check-availability`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          startTime: new Date(startTime).toISOString(),
+          duration: duration
+        })
+      });
+
+      const data = await response.json();
+      setAvailabilityInfo(data);
+      
+      if (!data.available) {
+        toast.error(`Car is not available for the selected time. Next available: ${data.nextAvailableStartTime ? new Date(data.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
+      }
+    } catch (error) {
+      console.error('Availability check error:', error);
+      toast.error('Failed to check availability. Please try again.');
+    } finally {
+      setCheckingAvailability(false);
+    }
   };
+
 
   if (!user) {
     return (
@@ -444,13 +653,34 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {DURATIONS.map((duration) => (
-                                <SelectItem key={duration} value={String(duration)}>
-                                  {formatDuration(duration)}
-                                </SelectItem>
-                              ))}
+                              {DURATIONS.map((durationOption) => {
+                                // Disable duration options that exceed maxDurationHours if available
+                                const isDisabled = availabilityInfo !== null && 
+                                                  !availabilityInfo.available && 
+                                                  availabilityInfo.maxDurationHours !== null &&
+                                                  availabilityInfo.maxDurationHours !== undefined &&
+                                                  durationOption > availabilityInfo.maxDurationHours;
+                                
+                                return (
+                                  <SelectItem 
+                                    key={durationOption} 
+                                    value={String(durationOption)}
+                                    disabled={!!isDisabled}
+                                    className={isDisabled ? "opacity-50 cursor-not-allowed" : ""}
+                                  >
+                                    {formatDuration(durationOption)}
+                                    {isDisabled && " (Not available)"}
+                                  </SelectItem>
+                                );
+                              })}
                               <div className="px-2 py-1.5 text-xs text-muted-foreground border-t border-border mt-1">
-                                Need longer than 3 days? Contact support@zionrentals.com
+                                {availabilityInfo && !availabilityInfo.available && availabilityInfo.maxDurationHours ? (
+                                  <span className="text-orange-600 dark:text-orange-400">
+                                    Maximum available duration: {availabilityInfo.maxDurationHours} hours
+                                  </span>
+                                ) : (
+                                  "Need longer than 3 days? Contact support@zionrentals.com"
+                                )}
                               </div>
                             </SelectContent>
                           </Select>
@@ -486,6 +716,41 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
+                )}
+
+                {/* Availability Status in Step 1 */}
+                {availabilityInfo !== null && (
+                  <div className="mt-4">
+                    {checkingAvailability ? (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4 animate-spin" />
+                        <AlertDescription>Checking availability...</AlertDescription>
+                      </Alert>
+                    ) : availabilityInfo.available ? (
+                      <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <AlertDescription className="text-green-800 dark:text-green-200">
+                          ✓ Car is available for the selected time slot
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <p className="font-semibold mb-2">Car is not available for the selected time.</p>
+                          {availabilityInfo.nextAvailableStartTime && (
+                            <p className="text-sm">Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                          )}
+                          {availabilityInfo.maxDurationHours !== null && availabilityInfo.maxDurationHours !== undefined && availabilityInfo.maxDurationHours > 0 && (
+                            <p className="text-sm">Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
+                          )}
+                          {availabilityInfo.maxDurationHours === 0 && (
+                            <p className="text-sm">No duration available at this time. Please select a different start time.</p>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -644,114 +909,8 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
             </Card>
           )}
 
-          {/* Step 3: References */}
+          {/* Step 3: License & Deposit */}
           {currentStep === 3 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Phone className="h-5 w-5" />
-                  <span>References</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Please provide two references who can vouch for you. These should be people who know you well.
-                  </AlertDescription>
-                </Alert>
-                
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <h4 className="font-medium">Reference 1</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="reference1Name"
-                        rules={{ 
-                          required: "Reference 1 name is required",
-                          validate: (value) => validateName(value) || "Reference name must be at least 2 characters and contain only letters"
-                        }}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter reference name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="reference1Mobile"
-                        rules={{ 
-                          required: "Reference 1 mobile is required",
-                          validate: (value) => validateMobile(value) || "Please enter a valid 10-digit mobile number"
-                        }}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mobile Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter mobile number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-4">
-                    <h4 className="font-medium">Reference 2</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="reference2Name"
-                        rules={{ 
-                          required: "Reference 2 name is required",
-                          validate: (value) => validateName(value) || "Reference name must be at least 2 characters and contain only letters"
-                        }}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter reference name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="reference2Mobile"
-                        rules={{ 
-                          required: "Reference 2 mobile is required",
-                          validate: (value) => validateMobile(value) || "Please enter a valid 10-digit mobile number"
-                        }}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mobile Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter mobile number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 4: License & Deposit */}
-          {currentStep === 4 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -824,8 +983,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="cash">Cash Deposit (₹{depositAmount.toLocaleString()})</SelectItem>
-                          <SelectItem value="bike">Bike as Security</SelectItem>
-                          <SelectItem value="online">Online Payment</SelectItem>
+                          <SelectItem value="bike">Two Wheeler as Security</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -838,16 +996,16 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     control={form.control}
                     name="bikeDetails"
                     rules={{ 
-                      required: depositType === "bike" ? "Bike details are required" : false,
-                      minLength: { value: 5, message: "Bike details must be at least 5 characters" }
+                      required: depositType === "bike" ? "Two wheeler details are required" : false,
+                      minLength: { value: 5, message: "Two wheeler details must be at least 5 characters" }
                     }}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Bike Details</FormLabel>
+                        <FormLabel>Two Wheeler Details</FormLabel>
                         <FormControl>
                           <Textarea 
                             rows={3} 
-                            placeholder="Enter bike registration number, model, and other details" 
+                            placeholder="Enter two wheeler registration number, model, and other details" 
                             {...field} 
                           />
                         </FormControl>
@@ -857,153 +1015,103 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   />
                 )}
                 
-                <FormField
-                  control={form.control}
-                  name="homeDelivery"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Home Delivery Required</FormLabel>
-                        <p className="text-sm text-muted-foreground">
-                          Check this if you need the car delivered to your location
-                        </p>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-                
-                {homeDelivery && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="deliveryAddress"
-                      rules={{ 
-                        required: homeDelivery ? "Delivery address is required" : false,
-                        minLength: { value: 10, message: "Delivery address must be at least 10 characters" }
-                      }}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Delivery Address</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              rows={3} 
-                              placeholder="Enter delivery address" 
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="deliveryDistance"
-                      rules={{ 
-                        required: homeDelivery ? "Delivery distance is required" : false,
-                        validate: (value) => {
-                          if (homeDelivery) {
-                            if (value === undefined || value === null) {
-                              return "Delivery distance is required";
-                            }
-                            const numValue = Number(value);
-                            if (isNaN(numValue)) {
-                              return "Please enter a valid number";
-                            }
-                            if (numValue < 0) {
-                              return "Distance cannot be negative";
-                            }
-                            if (numValue > 100) {
-                              return "Maximum delivery distance is 100km";
-                            }
-                          }
-                          return true;
-                        }
-                      }}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Distance from Hub (km)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.1" 
-                              min="0" 
-                              max="100"
-                              placeholder="e.g. 4.5" 
-                              {...field}
-                              value={field.value || ''}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '') {
-                                  field.onChange(undefined);
-                                } else {
-                                  const numValue = Number(value);
-                                  if (!isNaN(numValue)) {
-                                    field.onChange(numValue);
-                                  }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Home delivery is also available after booking. Contact - 9100664083, charges will be applicable.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 4: Advance Payment */}
+          {currentStep === 4 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  <span>Pay Advance Fee to Block Car</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {checkingAvailability ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Checking availability...</p>
                   </div>
+                ) : availabilityInfo && !availabilityInfo.available ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="font-semibold mb-2">Car is not available for the selected time.</p>
+                      {availabilityInfo.nextAvailableStartTime && (
+                        <p>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                      )}
+                      {availabilityInfo.maxDurationHours && (
+                        <p>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="bg-muted p-4 rounded-lg space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Advance Amount:</span>
+                        <span className="text-lg font-bold text-primary">
+                          <IndianRupee className="inline h-4 w-4" />
+                          {(car.advanceAmount || 500).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        This amount will be used to block the car for your selected time slot.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Alert variant="destructive" className="mb-0 [&>svg]:mr-1 [&>svg]:ml-0">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle className="ml-2">Important: Non-Refundable Terms</AlertTitle>
+                        <AlertDescription className="mt-1 ml-2">
+                          <p className="leading-relaxed">The advance fee is <strong className="font-bold">NON-REFUNDABLE</strong> if your required documents (Aadhaar card + valid driving license) are missing or expired during physical verification when you arrive to pick up the car.</p>
+                        </AlertDescription>
+                      </Alert>
+
+                      <div className="flex items-start gap-3 p-4 border rounded-lg bg-background">
+                        <Checkbox
+                          id="non-refundable-accept"
+                          checked={nonRefundableAccepted}
+                          onCheckedChange={(checked) => setNonRefundableAccepted(checked === true)}
+                          className="mt-0.5 flex-shrink-0"
+                        />
+                        <label
+                          htmlFor="non-refundable-accept"
+                          className="text-sm leading-relaxed cursor-pointer flex-1"
+                        >
+                          I understand that the advance fee is non-refundable if my required documents 
+                          (Aadhaar card + valid driving license) are missing or expired during verification. 
+                          I have checked everything.
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
+                      <p className="text-sm text-blue-900 dark:text-blue-100">
+                        <strong>What happens next?</strong>
+                      </p>
+                      <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
+                        <li>After payment, your booking will be created with status "Advance Paid"</li>
+                        <li>The car will be immediately blocked for your selected time slot</li>
+                        <li>When you arrive, admin will verify your documents</li>
+                        <li>If documents are valid, the car will be handed over</li>
+                        <li>If documents are missing/expired, the booking will be rejected and advance will not be refunded</li>
+                      </ul>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {/* Step 5: Document Upload */}
-          {currentStep === 5 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Upload className="h-5 w-5" />
-                  <span>Document Upload</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Please upload clear, readable images of all required documents. File size should be less than 5MB each.
-                  </AlertDescription>
-                </Alert>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <UploadField
-                    form={form}
-                    name="drivingLicense"
-                    label="Driving License"
-                    description="Upload front and back of your driving license (any file type)"
-                  />
-                  
-                  <UploadField
-                    form={form}
-                    name="aadharCard"
-                    label="Aadhar Card"
-                    description="Upload front and back of your Aadhar card (any file type)"
-                  />
-                  
-                  <UploadField
-                    form={form}
-                    name="livePhoto"
-                    label="Live Photo"
-                    description="Take a live photo holding your ID (any file type)"
-                    onCameraClick={() => setIsCameraOpen(true)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Navigation Buttons */}
           <Card>
@@ -1022,16 +1130,22 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   <Button
                     type="button"
                     onClick={validateCurrentStep}
+                    disabled={
+                      // Disable if checking availability
+                      checkingAvailability ||
+                      // Disable in Step 1 if car is not available
+                      (currentStep === 1 && availabilityInfo !== null && !availabilityInfo.available)
+                    }
                   >
-                    Next Step
+                    {checkingAvailability ? "Checking..." : "Next Step"}
                   </Button>
                 ) : (
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || (currentStep === 4 && (!nonRefundableAccepted || !availabilityInfo?.available))}
                     className="min-w-[120px]"
                   >
-                    {isSubmitting ? "Submitting..." : "Submit Booking"}
+                    {isSubmitting ? "Processing..." : "Pay & Confirm Booking"}
                   </Button>
                 )}
               </div>
@@ -1039,237 +1153,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
           </Card>
         </form>
       </Form>
-      
-      {/* Camera Capture Modal */}
-      <CameraCapture
-        isOpen={isCameraOpen}
-        onClose={() => setIsCameraOpen(false)}
-        onCapture={handleCameraCapture}
-      />
     </div>
-  );
-}
-
-function UploadField({
-  form,
-  name,
-  label,
-  description,
-  onCameraClick,
-}: {
-  form: UseFormReturn<BookingFormValues>;
-  name: keyof Pick<BookingFormValues, "drivingLicense" | "aadharCard" | "livePhoto">;
-  label: string;
-  description: string;
-  onCameraClick?: () => void;
-}) {
-  const [dragActive, setDragActive] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
-  };
-  
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const fileList = e.dataTransfer.files;
-      form.setValue(name, fileList);
-      await form.trigger(name);
-      const file = fileList[0];
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        setPreviewUrl(url);
-      }
-    }
-  };
-  
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      form.setValue(name, e.target.files);
-      await form.trigger(name);
-      const file = e.target.files[0];
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        setPreviewUrl(url);
-      }
-    }
-  };
-  
-  const handleRemove = async () => {
-    form.setValue(name, undefined as any);
-    await form.trigger(name);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-  };
-  
-  const files = form.watch(name);
-  const file = files?.item(0);
-  
-  // Update preview when file changes
-  useEffect(() => {
-    if (file && file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setPreviewUrl(null);
-    }
-  }, [file]);
-  
-  // For live photo, only show camera button
-  if (name === "livePhoto") {
-    return (
-      <FormField
-        control={form.control}
-        name={name}
-        rules={{ required: `${label} is required` }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{label}</FormLabel>
-            <FormControl>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center border-muted-foreground/25">
-                {file ? (
-                  <div className="space-y-3">
-                    {previewUrl ? (
-                      <div className="relative">
-                        <img
-                          src={previewUrl}
-                          alt="Live photo preview"
-                          className="w-full h-48 object-contain rounded-lg border border-border"
-                        />
-                      </div>
-                    ) : (
-                      <CheckCircle className="h-8 w-8 text-green-500 mx-auto" />
-                    )}
-                    <p className="text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRemove}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <Camera className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <div>
-                      <p className="text-sm font-medium">Take a live photo</p>
-                      <p className="text-xs text-muted-foreground">{description}</p>
-                    </div>
-                    {onCameraClick && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={onCameraClick}
-                        className="bg-blue-50 hover:bg-blue-100 border-blue-200"
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Take Photo
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    );
-  }
-  
-  // For driving license and aadhar card, show file upload with preview
-  return (
-    <FormField
-      control={form.control}
-      name={name}
-      rules={{ required: `${label} is required` }}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              {file ? (
-                <div className="space-y-3">
-                  {previewUrl ? (
-                    <div className="relative">
-                      <img
-                        src={previewUrl}
-                        alt={`${label} preview`}
-                        className="w-full h-48 object-contain rounded-lg border border-border"
-                      />
-                    </div>
-                  ) : (
-                    <CheckCircle className="h-8 w-8 text-green-500 mx-auto" />
-                  )}
-                  <p className="text-sm font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB • {file.type || 'Unknown type'}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemove}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
-                  <div>
-                    <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">{description}</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id={`upload-${name}`}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => document.getElementById(`upload-${name}`)?.click()}
-                  >
-                    Choose File
-                  </Button>
-                </div>
-              )}
-            </div>
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
   );
 }

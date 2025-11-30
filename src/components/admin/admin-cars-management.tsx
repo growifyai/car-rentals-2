@@ -46,11 +46,13 @@ interface Car {
   price12Hours?: number;
   price24Hours?: number;
   securityDeposit?: number;
+  advanceAmount?: number;
   driverAvailable?: boolean;
   driverChargesPerDay?: number;
   description?: string;
   features: string[];
   imageUrl?: string;
+  images?: string[];
   registrationNumber?: string;
   available: boolean;
   createdAt: string;
@@ -173,11 +175,6 @@ export function AdminCarsManagement() {
                   <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-1">
                     {car.brand || "Unknown Brand"} {car.model || "Unknown Model"} • {car.year || "Unknown Year"}
                   </p>
-                  {car.registrationNumber && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Reg: {car.registrationNumber}
-                    </p>
-                  )}
                 </div>
                 <div className="flex flex-col space-y-1.5 shrink-0">
                   <Badge className={`${getTypeColor(car.type)} text-xs px-2 py-0.5`}>

@@ -147,3 +147,36 @@ input[type="date"]::-moz-calendar-picker-indicator:hover {
   opacity: 1 !important;
 }
 
+/* Select Dropdown Fix - Ensure dropdowns appear above dialogs */
+[data-slot="select-content"] {
+  z-index: 100000 !important;
+  position: relative !important;
+}
+
+/* Razorpay Modal Fix - Ensure it appears above all dialogs */
+.razorpay-container,
+.razorpay-checkout-frame,
+.razorpay-checkout-frame-wrapper,
+iframe[name="razorpay-checkout-frame"] {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
+/* Ensure Razorpay modal overlay is above everything */
+body > div[style*="z-index"]:has(iframe[name="razorpay-checkout-frame"]) {
+  z-index: 999999 !important;
+}
+
+/* Fix for Razorpay modal pointer events */
+.razorpay-checkout-frame,
+iframe[name="razorpay-checkout-frame"] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Ensure Razorpay modal is clickable */
+div[style*="position: fixed"][style*="z-index"]:has(iframe[name="razorpay-checkout-frame"]) {
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+

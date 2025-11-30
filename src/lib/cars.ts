@@ -54,6 +54,16 @@ export function mapApiCarToCard(car: ApiCar): CarCardData {
     price72hr: (car.pricePerHour || 0) * 72,
   };
 
+  // Handle images array: normalize all image URLs
+  const normalizedImages = car.images && Array.isArray(car.images) && car.images.length > 0
+    ? car.images.map(img => normalizeImageUrl(img)).filter((img): img is string => img !== undefined)
+    : [];
+  
+  // Fall back to imageUrl if images array is empty
+  const normalizedImageUrl = normalizedImages.length > 0 
+    ? normalizedImages[0] 
+    : normalizeImageUrl(car.imageUrl);
+
   return {
     id: car._id,
     name: car.carName || car.name || "Unknown Car",
@@ -64,10 +74,12 @@ export function mapApiCarToCard(car: ApiCar): CarCardData {
     pricing: car.pricing || defaultPricing,
     driverAvailable: car.driverAvailable || false,
     driverChargesPerDay: car.driverChargesPerDay || 0,
-    imageUrl: normalizeImageUrl(car.imageUrl),
+    imageUrl: normalizedImageUrl,
+    images: normalizedImages.length > 0 ? normalizedImages : (normalizedImageUrl ? [normalizedImageUrl] : []),
     features: car.features ?? [],
     available: car.available !== undefined ? car.available : true,
     depositAmount: car.securityDeposit || calculateDeposit(carType),
+    advanceAmount: car.advanceAmount,
     gearType: car.gearType || "manual",
     fuelType: car.fuelType || "petrol",
     seatingCapacity: car.seatingCapacity || 5,

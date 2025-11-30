@@ -9,6 +9,7 @@ import { Menu, X, User, Settings } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "./notification-bell";
+import { UpdatesIcon } from "./updates-icon";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -53,7 +54,12 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center space-x-3 md:flex">
-          {user ? <NotificationBell /> : null}
+          {user ? (
+            <>
+              <UpdatesIcon />
+              <NotificationBell />
+            </>
+          ) : null}
           {user?.role === "admin" && (
             <Button asChild variant="outline" size="sm">
               <Link href="/admin/dashboard">

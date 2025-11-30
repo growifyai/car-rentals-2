@@ -21,12 +21,16 @@ interface AdminBookingsResponse {
 }
 
 const statusLabels: Record<string, string> = {
+  advance_paid: "Advance Paid",
+  verified: "Verified",
+  rejected: "Rejected",
+  active: "Active",
+  completed: "Completed",
+  // Legacy statuses for backward compatibility
   pending: "Pending review",
   accepted: "Accepted",
   payment_pending: "Awaiting payment",
   paid: "Paid",
-  active: "Active",
-  completed: "Completed",
   declined: "Declined",
   cancelled: "Cancelled",
 };
@@ -79,17 +83,30 @@ export async function fetchAdminBookings(token: string, status?: string) {
   }));
 }
 
+export async function verifyBooking(
+  bookingId: string,
+  action: "accept" | "reject",
+  token: string,
+  rejectionReason?: string,
+  adminNotes?: string,
+) {
+  return apiFetch<{ message: string }>(`/api/bookings/${bookingId}/verify`, {
+    method: "PUT",
+    json: { action, rejectionReason, adminNotes },
+    token,
+  });
+}
+
+// Legacy function for backward compatibility
 export async function reviewBooking(
   bookingId: string,
   action: "accept" | "decline",
   token: string,
   adminNotes?: string,
 ) {
-  return apiFetch<{ message: string }>(`/api/bookings/${bookingId}/review`, {
-    method: "PUT",
-    json: { action, adminNotes },
-    token,
-  });
+  // Map old actions to new ones
+  const newAction = action === "accept" ? "accept" : "reject";
+  return verifyBooking(bookingId, newAction, token, action === "decline" ? adminNotes : undefined, adminNotes);
 }
 
 export async function startBooking(

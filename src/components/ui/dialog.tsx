@@ -38,7 +38,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[99998] bg-black/80",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[99998] bg-black/80 backdrop-blur-sm",
         className,
       )}
       {...props}
@@ -51,14 +51,31 @@ function DialogContent({
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  // Extract max-width from className if present
+  const maxWidthMatch = className?.match(/max-w-(\w+)/);
+  const maxWidthValue = maxWidthMatch 
+    ? maxWidthMatch[1] === 'xs' ? '20rem'
+      : maxWidthMatch[1] === 'sm' ? '24rem'
+      : maxWidthMatch[1] === 'md' ? '28rem'
+      : maxWidthMatch[1] === 'lg' ? '32rem'
+      : maxWidthMatch[1] === 'xl' ? '36rem'
+      : maxWidthMatch[1] === '2xl' ? '42rem'
+      : maxWidthMatch[1] === '3xl' ? '48rem'
+      : maxWidthMatch[1] === '4xl' ? '56rem'
+      : maxWidthMatch[1] === '5xl' ? '64rem'
+      : maxWidthMatch[1] === '6xl' ? '72rem'
+      : maxWidthMatch[1] === '7xl' ? '80rem'
+      : undefined
+    : '32rem'; // Default to lg
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed z-[99999] grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
-          "inset-0 m-auto",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed grid gap-4 rounded-lg border p-6 shadow-lg duration-200",
+          "w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto",
           className,
         )}
         style={{
@@ -66,7 +83,8 @@ function DialogContent({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          maxHeight: '90vh',
+          zIndex: 99999,
+          maxWidth: maxWidthValue,
         }}
         {...props}
       >

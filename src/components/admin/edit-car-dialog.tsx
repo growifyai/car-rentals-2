@@ -31,11 +31,13 @@ interface Car {
   price12Hours?: number;
   price24Hours?: number;
   securityDeposit?: number;
+  advanceAmount?: number;
   driverAvailable?: boolean;
   driverChargesPerDay?: number;
   description?: string;
   features: string[];
   imageUrl?: string;
+  images?: string[];
   registrationNumber?: string;
   available: boolean;
   createdAt: string;
@@ -65,6 +67,7 @@ export function EditCarDialog({ car, onCarUpdated }: EditCarDialogProps) {
         price72hr: car.pricePerHour ? car.pricePerHour * 72 : 0,
       },
       securityDeposit: car.securityDeposit || 0,
+      advanceAmount: car.advanceAmount || 500,
       driverAvailable: car.driverAvailable || false,
       driverChargesPerDay: car.driverChargesPerDay || 0,
       gearType: car.gearType || "manual",
@@ -73,6 +76,9 @@ export function EditCarDialog({ car, onCarUpdated }: EditCarDialogProps) {
       features: car.features || [],
       description: car.description || "",
       imageUrl: car.imageUrl || "",
+      images: car.images && Array.isArray(car.images) && car.images.length > 0
+        ? car.images
+        : (car.imageUrl ? [car.imageUrl] : []),
       registrationNumber: car.registrationNumber || "",
     };
   };

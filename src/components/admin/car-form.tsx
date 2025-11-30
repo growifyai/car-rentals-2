@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 export interface CarFormData {
   carName: string;
@@ -27,11 +28,13 @@ export interface CarFormData {
     price72hr: number;
   };
   securityDeposit: number;
+  advanceAmount: number;
   driverAvailable: boolean;
   driverChargesPerDay: number;
   description: string;
   features: string[];
   imageUrl: string;
+  images?: string[]; // New: Multiple images array
   registrationNumber: string;
   available: boolean;
 }
@@ -69,17 +72,20 @@ export function CarForm({
       price72hr: 0,
     },
     securityDeposit: 0,
+    advanceAmount: 500,
     driverAvailable: false,
     driverChargesPerDay: 0,
     description: "",
     features: [],
     imageUrl: "",
+    images: [],
     registrationNumber: "",
     available: true,
     ...initialData,
   });
 
   const [featuresInput, setFeaturesInput] = useState("");
+  const [newImageUrl, setNewImageUrl] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = (): boolean => {
@@ -115,6 +121,9 @@ export function CarForm({
     if (!formData.securityDeposit || formData.securityDeposit < 0) {
       newErrors.securityDeposit = "Security deposit must be greater than or equal to 0";
     }
+    if (!formData.advanceAmount || formData.advanceAmount <= 0) {
+      newErrors.advanceAmount = "Advance amount must be greater than 0";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -125,7 +134,17 @@ export function CarForm({
     if (!validateForm()) return;
 
     try {
-      await onSubmit(formData);
+      // Ensure images array is sent, and imageUrl is set from first image if images exist
+      const submitData = {
+        ...formData,
+        images: formData.images && formData.images.length > 0 
+          ? formData.images 
+          : (formData.imageUrl ? [formData.imageUrl] : []),
+        imageUrl: formData.images && formData.images.length > 0 
+          ? formData.images[0] 
+          : formData.imageUrl
+      };
+      await onSubmit(submitData);
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -146,6 +165,44 @@ export function CarForm({
       ...prev,
       features: prev.features.filter((_, i) => i !== index)
     }));
+  };
+
+  const addImage = () => {
+    if (newImageUrl.trim() && !formData.images?.includes(newImageUrl.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...(prev.images || []), newImageUrl.trim()],
+        imageUrl: prev.imageUrl || newImageUrl.trim() // Set first image as imageUrl for backward compatibility
+      }));
+      setNewImageUrl("");
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => {
+      const newImages = (prev.images || []).filter((_, i) => i !== index);
+      return {
+        ...prev,
+        images: newImages,
+        imageUrl: newImages.length > 0 ? newImages[0] : prev.imageUrl // Keep first image as imageUrl
+      };
+    });
+  };
+
+  const moveImage = (index: number, direction: "up" | "down") => {
+    setFormData(prev => {
+      const images = [...(prev.images || [])];
+      if (direction === "up" && index > 0) {
+        [images[index - 1], images[index]] = [images[index], images[index - 1]];
+      } else if (direction === "down" && index < images.length - 1) {
+        [images[index], images[index + 1]] = [images[index + 1], images[index]];
+      }
+      return {
+        ...prev,
+        images,
+        imageUrl: images.length > 0 ? images[0] : prev.imageUrl
+      };
+    });
   };
 
   const updatePricing = (field: keyof CarFormData['pricing'], value: number) => {
@@ -253,14 +310,105 @@ export function CarForm({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="imageUrl">Image URL</Label>
-            <Input
-              id="imageUrl"
-              value={formData.imageUrl}
-              onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-              placeholder="https://example.com/car-image.jpg"
-            />
+          {/* Images Section - Better Spacing */}
+          <div className="space-y-6 pt-4 border-t">
+            {/* Add Image Section */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Car Images (Multiple Images Supported)</Label>
+              <div className="flex gap-3">
+                <Input
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  placeholder="https://example.com/car-image.jpg"
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addImage();
+                    }
+                  }}
+                />
+                <Button type="button" onClick={addImage} variant="outline" className="shrink-0">
+                  <Plus className="size-4 mr-2" />
+                  Add Image
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Add multiple images to create a gallery. The first image will be used as the primary image.
+              </p>
+            </div>
+
+            {/* Images List */}
+            {formData.images && formData.images.length > 0 && (
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-semibold">Uploaded Images ({formData.images.length})</Label>
+                <div className="space-y-3 max-h-80 overflow-y-auto p-1">
+                  {formData.images.map((img, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 p-4 border rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate mb-1">{img}</p>
+                        {index === 0 && (
+                          <p className="text-xs text-muted-foreground font-medium">Primary Image</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => moveImage(index, "up")}
+                          disabled={index === 0}
+                          title="Move up"
+                        >
+                          <ArrowUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => moveImage(index, "down")}
+                          disabled={index === formData.images!.length - 1}
+                          title="Move down"
+                        >
+                          <ArrowDown className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-destructive hover:text-destructive"
+                          onClick={() => removeImage(index)}
+                          title="Remove image"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legacy single image URL field (for backward compatibility) */}
+            <div className="space-y-3 pt-4 border-t">
+              <Label htmlFor="imageUrl" className="text-base font-semibold">Primary Image URL (Legacy - Auto-filled from first image above)</Label>
+              <Input
+                id="imageUrl"
+                value={formData.imageUrl}
+                onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                placeholder="https://example.com/car.jpg"
+                readOnly
+                className="bg-muted"
+              />
+              <p className="text-sm text-muted-foreground">
+                This field is automatically set from the first image above for backward compatibility.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -416,6 +564,22 @@ export function CarForm({
                 className={errors.securityDeposit ? "border-red-500" : ""}
               />
               {errors.securityDeposit && <p className="text-sm text-red-500">{errors.securityDeposit}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="advanceAmount">Advance Amount (₹) *</Label>
+              <Input
+                id="advanceAmount"
+                type="number"
+                value={formData.advanceAmount}
+                onChange={(e) => setFormData(prev => ({ ...prev, advanceAmount: parseInt(e.target.value) || 0 }))}
+                min="1"
+                className={errors.advanceAmount ? "border-red-500" : ""}
+              />
+              {errors.advanceAmount && <p className="text-sm text-red-500">{errors.advanceAmount}</p>}
+              <p className="text-xs text-muted-foreground">
+                Non-refundable amount to block the car. Required before booking creation.
+              </p>
             </div>
           </div>
         </CardContent>

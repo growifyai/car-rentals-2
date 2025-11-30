@@ -1,7 +1,7 @@
 import type { ApiBookingSummary, ApiCar, ApiUser } from "@/types/api";
 import type { BookingSummary, BookingDetail } from "@/types/bookings";
 
-import { apiFetch } from "./api-client";
+import { apiFetch, type ApiClientError } from "./api-client";
 import { calculateDeposit, mapApiCarToCard } from "./cars";
 import { getApiBaseUrl } from "./env";
 
@@ -64,15 +64,101 @@ interface BookingDetailResponse {
     drivingLicenseImage?: string;
     aadharCardImage?: string;
     livePhoto?: string;
+    receiptPdfUrl?: string;
+    advanceAmount?: number;
+    advancePaymentStatus?: string;
   };
 }
 
-export async function createBooking(formData: FormData, token: string) {
+interface CreateBookingPayload {
+  carId: string;
+  startTime: string;
+  duration: number;
+  fullName: string;
+  guardianName: string;
+  guardianRelation: string;
+  residentialAddress: string;
+  email: string;
+  mobile: string;
+  occupation: string;
+  drivingLicenseNumber: string;
+  licenseExpiryDate: string;
+  depositType: string;
+  bikeDetails?: string | null;
+  withDriver: boolean;
+  homeDelivery: boolean;
+  deliveryDistance: number;
+  paymentId?: string;
+  paymentStatus?: string;
+}
+
+interface RazorpayOrderResponse {
+  success: boolean;
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+}
+
+interface PaymentVerificationResponse {
+  success: boolean;
+  paymentId: string;
+  orderId: string;
+  paymentStatus: string;
+  message: string;
+}
+
+// Create Razorpay order for advance payment
+export async function createRazorpayOrder(
+  carId: string,
+  startTime: string,
+  duration: number,
+  amount: number,
+  token: string
+): Promise<RazorpayOrderResponse> {
+  return apiFetch<RazorpayOrderResponse>("/api/bookings/advance-payment/create-order", {
+    method: "POST",
+    json: {
+      carId,
+      startTime,
+      duration,
+      amount,
+    },
+    token,
+  });
+}
+
+// Verify Razorpay payment
+export async function verifyRazorpayPayment(
+  razorpay_order_id: string,
+  razorpay_payment_id: string,
+  razorpay_signature: string,
+  carId: string,
+  startTime: string,
+  duration: number,
+  amount: number,
+  token: string
+): Promise<PaymentVerificationResponse> {
+  return apiFetch<PaymentVerificationResponse>("/api/bookings/advance-payment/verify", {
+    method: "POST",
+    json: {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      carId,
+      startTime,
+      duration,
+      amount,
+    },
+    token,
+  });
+}
+
+export async function createBooking(bookingData: CreateBookingPayload, token: string) {
   return apiFetch<CreateBookingResponse>("/api/bookings", {
     method: "POST",
-    body: formData,
+    json: bookingData,
     token,
-    isFormData: true,
   });
 }
 
@@ -105,8 +191,8 @@ function mapBookingSummary(apiBooking: ApiBookingSummary): BookingSummary {
     depositAmount: depositAmount || 0,
     status: apiBooking.status || "pending",
     paymentStatus: apiBooking.paymentStatus || "pending",
+    razorpayOrderId: apiBooking.razorpayOrderId,
     createdAt: apiBooking.createdAt,
-    // razorpayOrderId: apiBooking.razorpayOrderId, // Property does not exist on ApiBookingSummary
   };
 }
 
@@ -260,7 +346,7 @@ export async function fetchMyBookings(token: string): Promise<BookingSummary[]> 
         }
         // Fallback if somehow carId is still invalid
         throw new Error("Invalid car data in booking");
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error mapping booking:", error, booking);
         // Return a fallback booking summary instead of filtering out
         const carId = booking.carId as any;
@@ -285,7 +371,7 @@ export async function fetchMyBookings(token: string): Promise<BookingSummary[]> 
     console.log("Final booking statuses:", processedBookings.map(b => ({ id: b.id, status: b.status })));
     
     return processedBookings;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching bookings:", error);
     throw error;
   }
@@ -300,15 +386,18 @@ export async function fetchBookingDetail(bookingId: string, token: string): Prom
   let response: any;
   try {
     response = await apiFetch<any>(`/api/bookings/${bookingId}`, { token });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching booking detail:", error);
     // If 404 or 403, the booking might not exist or user doesn't have access
-    if (error?.status === 404) {
-      throw new Error("Booking not found. It may have been deleted or you don't have access to it.");
-    } else if (error?.status === 403) {
-      throw new Error("You don't have permission to view this booking.");
-    } else if (error?.status === 401) {
-      throw new Error("Please login again to view booking details.");
+    if (error && typeof error === 'object' && 'status' in error) {
+      const apiError = error as ApiClientError;
+      if (apiError.status === 404) {
+        throw new Error("Booking not found. It may have been deleted or you don't have access to it.");
+      } else if (apiError.status === 403) {
+        throw new Error("You don't have permission to view this booking.");
+      } else if (apiError.status === 401) {
+        throw new Error("Please login again to view booking details.");
+      }
     }
     throw error;
   }
@@ -385,10 +474,14 @@ export async function fetchBookingDetail(bookingId: string, token: string): Prom
       drivingLicenseImage: normalizeImageUrl(bookingData.drivingLicenseImage),
       aadharCardImage: normalizeImageUrl(bookingData.aadharCardImage),
       livePhoto: normalizeImageUrl(bookingData.livePhoto),
+      receiptPdfUrl: bookingData.receiptPdfUrl ? normalizeImageUrl(bookingData.receiptPdfUrl) : undefined,
+      advanceAmount: bookingData.advanceAmount,
+      advancePaymentStatus: bookingData.advancePaymentStatus,
     };
-  } catch (mappingError: any) {
+  } catch (mappingError: unknown) {
     console.error("Error mapping booking data:", mappingError);
     console.error("Booking data received:", bookingData);
-    throw new Error(`Failed to process booking data: ${mappingError?.message || "Unknown error"}`);
+    const errorMessage = mappingError instanceof Error ? mappingError.message : "Unknown error";
+    throw new Error(`Failed to process booking data: ${errorMessage}`);
   }
 }

@@ -42,13 +42,14 @@ export function BookingsDashboardClient() {
         setError("Invalid data received from server");
         toast.error("Invalid data received from server");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error loading bookings:", err);
-      const errorMessage = err?.message || "Unable to load bookings";
+      const errorMessage = err instanceof Error ? err.message : "Unable to load bookings";
+      const apiError = err && typeof err === 'object' && 'status' in err ? err as { status: number; details?: unknown } : null;
       console.error("Error details:", {
         message: errorMessage,
-        status: err?.status,
-        details: err?.details
+        status: apiError?.status,
+        details: apiError?.details
       });
       setError(errorMessage);
       toast.error(errorMessage);

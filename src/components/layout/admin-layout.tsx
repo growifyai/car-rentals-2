@@ -12,7 +12,10 @@ import {
   Home,
   Settings,
   Users,
-  TrendingUp
+  TrendingUp,
+  Bell,
+  Video,
+  Image as ImageIcon
 } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -29,6 +32,8 @@ const navigationItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: BarChart3, description: "Overview & Analytics" },
   { href: "/admin/bookings", label: "Bookings", icon: Calendar, description: "Manage Reservations" },
   { href: "/admin/cars", label: "Cars Management", icon: Car, description: "Fleet Management" },
+  { href: "/admin/updates", label: "Updates", icon: Bell, description: "Site Announcements" },
+  { href: "/admin/homepage", label: "Homepage", icon: Video, description: "Hero Video & Banners" },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {

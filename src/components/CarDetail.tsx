@@ -15,6 +15,13 @@ import { Card, CardContent } from "./ui/card";
 import { Separator } from "./ui/separator";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Label } from "./ui/label";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./ui/carousel";
 
 interface CarDetailProps {
   car: CarDetailData;
@@ -33,23 +40,42 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
     return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
   };
   
-  const getImageSrc = (): string => {
-    if (car.imageUrl && isValidImageUrl(car.imageUrl)) {
-      return car.imageUrl;
+  // Get all images: prefer images array, fall back to imageUrl, then placeholder
+  const getAllImages = (): string[] => {
+    const images: string[] = [];
+    
+    // First, use images array if available
+    if (car.images && Array.isArray(car.images) && car.images.length > 0) {
+      car.images.forEach(img => {
+        if (isValidImageUrl(img)) {
+          images.push(img);
+        }
+      });
     }
-    return PLACEHOLDER_IMAGE;
+    
+    // If no images from array, try imageUrl
+    if (images.length === 0 && car.imageUrl && isValidImageUrl(car.imageUrl)) {
+      images.push(car.imageUrl);
+    }
+    
+    // If still no images, use placeholder
+    if (images.length === 0) {
+      images.push(PLACEHOLDER_IMAGE);
+    }
+    
+    return images;
   };
   
-  const imageSrc = getImageSrc();
-  let shouldUnoptimize = false;
-  try {
-    const url = new URL(imageSrc);
-    if (url.hostname === "res.cloudinary.com") {
-      shouldUnoptimize = true;
+  const carImages = getAllImages();
+  
+  const shouldUnoptimize = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname === "res.cloudinary.com";
+    } catch {
+      return false;
     }
-  } catch {
-    // ignore
-  }
+  };
 
   const handleBookNow = () => {
     if (onBookNow) {
@@ -59,23 +85,46 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
 
   return (
     <section className="space-y-8">
-      {/* Car Image */}
+      {/* Car Image Gallery */}
       <motion.div
         className="relative overflow-hidden rounded-3xl"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="relative h-[400px] lg:h-[500px]">
-          <Image
-            src={imageSrc}
-            alt={car.name}
-            fill
-            className="object-cover"
-            priority
-            unoptimized={shouldUnoptimize}
-          />
-        </div>
+        {carImages.length > 1 ? (
+          <Carousel className="w-full">
+            <CarouselContent>
+              {carImages.map((imageSrc, index) => (
+                <CarouselItem key={index}>
+                  <div className="relative h-[400px] lg:h-[500px]">
+                    <Image
+                      src={imageSrc}
+                      alt={`${car.name} - Image ${index + 1}`}
+                      fill
+                      className="object-cover rounded-lg"
+                      priority={index === 0}
+                      unoptimized={shouldUnoptimize(imageSrc)}
+                    />
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="left-4" />
+            <CarouselNext className="right-4" />
+          </Carousel>
+        ) : (
+          <div className="relative h-[400px] lg:h-[500px]">
+            <Image
+              src={carImages[0]}
+              alt={car.name}
+              fill
+              className="object-cover"
+              priority
+              unoptimized={shouldUnoptimize(carImages[0])}
+            />
+          </div>
+        )}
       </motion.div>
 
       {/* Main Content */}
@@ -157,15 +206,6 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
                         Year
                       </p>
                       <p className="text-foreground font-medium">{car.year}</p>
-                    </div>
-                  )}
-                  {car.registrationNumber && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                        <FileText className="h-3 w-3" />
-                        Registration
-                      </p>
-                      <p className="text-foreground font-medium">{car.registrationNumber}</p>
                     </div>
                   )}
                 </div>

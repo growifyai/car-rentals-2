@@ -26,7 +26,7 @@ export async function apiFetch<TResponse>(path: string, options: FetchOptions = 
     json,
     isFormData,
     headers,
-    timeoutMs = 10000,
+    timeoutMs = 30000, // Increased to 30 seconds for better reliability
     retries = 1,
     ...rest
   } = options;
@@ -104,6 +104,12 @@ export async function apiFetch<TResponse>(path: string, options: FetchOptions = 
       if (isNetworkFetchError) {
         throw buildError(0, "Network error: Unable to connect to the server. Please check your internet connection.", error);
       }
+      
+      // Handle aborted signals with better error message
+      if (isAbort) {
+        throw buildError(0, `Request timeout: The server took too long to respond (${timeoutMs}ms). Please check if the backend server is running on ${baseUrl}`, error);
+      }
+      
       throw error;
     }
   }

@@ -34,8 +34,10 @@ export interface ApiCar {
   description?: string;
   features: string[];
   imageUrl?: string;
+  images?: string[]; // New: Multiple images array
   registrationNumber?: string;
   available: boolean;
+  advanceAmount?: number;
   createdAt?: string;
   // Legacy fields for backward compatibility
   pricePerHour?: number;
@@ -59,6 +61,7 @@ export interface ApiBookingSummary {
   duration: number;
   totalPrice: number;
   paymentStatus: "pending" | "completed" | "failed" | "refunded";
+  razorpayOrderId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

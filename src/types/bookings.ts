@@ -43,5 +43,8 @@ export interface BookingDetail extends BookingSummary {
   drivingLicenseImage?: string;
   aadharCardImage?: string;
   livePhoto?: string;
+  receiptPdfUrl?: string;
+  advanceAmount?: number;
+  advancePaymentStatus?: string;
 }
 

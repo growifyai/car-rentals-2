@@ -14,7 +14,8 @@ import {
   Car,
   DollarSign,
   Clock,
-  FileText
+  FileText,
+  Download
 } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -28,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { fetchAdminBookings, reviewBooking, startBooking, completeBooking } from "@/lib/admin";
+import { fetchAdminBookings, verifyBooking, startBooking, completeBooking } from "@/lib/admin";
 import { apiFetch } from "@/lib/api-client";
 import { getApiBaseUrl } from "@/lib/env";
 import { toast } from "sonner";
@@ -83,16 +84,23 @@ interface BookingDetail {
   lateReturnFee?: number;
   lateHours?: number;
   adminNotes?: string;
+  receiptPdfUrl?: string;
+  advanceAmount?: number;
+  advancePaymentStatus?: string;
   createdAt: string;
 }
 
 const STATUS_FILTERS = [
   { label: "All Bookings", value: "all" },
+  { label: "Advance Paid", value: "advance_paid" },
+  { label: "Verified", value: "verified" },
+  { label: "Rejected", value: "rejected" },
+  { label: "Active", value: "active" },
+  { label: "Completed", value: "completed" },
+  // Legacy statuses for backward compatibility
   { label: "Pending Review", value: "pending" },
   { label: "Payment Pending", value: "payment_pending" },
   { label: "Paid", value: "paid" },
-  { label: "Active", value: "active" },
-  { label: "Completed", value: "completed" },
   { label: "Declined", value: "declined" },
 ];
 
@@ -125,7 +133,7 @@ export function AdminBookingsManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<BookingDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<"review" | "start" | "complete" | "view">("view");
+  const [modalType, setModalType] = useState<"verify" | "start" | "complete" | "view">("view");
 
   useEffect(() => {
     if (!token) return;
@@ -191,24 +199,24 @@ export function AdminBookingsManagement() {
     }
   };
 
-  const handleAction = (booking: BookingDetail, action: "view" | "review" | "start" | "complete") => {
+  const handleAction = (booking: BookingDetail, action: "view" | "verify" | "start" | "complete") => {
     setSelectedBooking(booking);
     setModalType(action);
     setIsModalOpen(true);
   };
 
-  const handleReview = async (action: "accept" | "decline", adminNotes?: string) => {
+  const handleVerify = async (action: "accept" | "reject", rejectionReason?: string, adminNotes?: string) => {
     if (!selectedBooking || !token) return;
 
     try {
-      await reviewBooking(selectedBooking._id, action, token, adminNotes);
-      toast.success(`Booking ${action === "accept" ? "accepted" : "declined"}`);
+      await verifyBooking(selectedBooking._id, action, token, rejectionReason, adminNotes);
+      toast.success(`Booking ${action === "accept" ? "verified and accepted" : "rejected"}`);
       setIsModalOpen(false);
       // Refresh bookings
       const response = await apiFetch<{ bookings: BookingDetail[] }>("/api/bookings", { token });
       setBookings(response.bookings);
     } catch (err) {
-      console.error("Failed to review booking:", err);
+      console.error("Failed to verify booking:", err);
       toast.error("Failed to update booking status");
     }
   };
@@ -374,18 +382,18 @@ export function AdminBookingsManagement() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {booking.status === "pending" && (
+                        {booking.status === "advance_paid" && (
                           <>
                             <Button
                               size="sm"
-                              onClick={() => handleAction(booking, "review")}
+                              onClick={() => handleAction(booking, "verify")}
                               className="bg-green-600 hover:bg-green-700 text-white"
                             >
                               <CheckCircle className="h-4 w-4" />
                             </Button>
                           </>
                         )}
-                        {booking.status === "paid" && (
+                        {booking.status === "verified" && (
                           <Button
                             size="sm"
                             onClick={() => handleAction(booking, "start")}
@@ -432,7 +440,7 @@ export function AdminBookingsManagement() {
         onClose={() => setIsModalOpen(false)}
         booking={selectedBooking}
         type={modalType}
-        onReview={handleReview}
+        onVerify={handleVerify}
         onStart={handleStart}
         onComplete={handleComplete}
       />
@@ -446,15 +454,15 @@ function BookingActionModal({
   onClose,
   booking,
   type,
-  onReview,
+  onVerify,
   onStart,
   onComplete,
 }: {
   isOpen: boolean;
   onClose: () => void;
   booking: BookingDetail | null;
-  type: "review" | "start" | "complete" | "view";
-  onReview: (action: "accept" | "decline", adminNotes?: string) => void;
+  type: "verify" | "start" | "complete" | "view";
+  onVerify: (action: "accept" | "reject", rejectionReason?: string, adminNotes?: string) => void;
   onStart: (vehicleName: string, vehicleNumber: string, startOdometer: number) => void;
   onComplete: (endOdometer: number, actualReturnTime?: string) => void;
 }) {
@@ -464,6 +472,55 @@ function BookingActionModal({
   const [startOdometer, setStartOdometer] = useState(0);
   const [endOdometer, setEndOdometer] = useState(0);
   const [actualReturnTime, setActualReturnTime] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { token } = useAuth();
+
+  const handleDownloadReceipt = async (bookingId: string) => {
+    if (!token) {
+      toast.error("Please login to download receipt");
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const receiptUrl = `${getApiBaseUrl()}/api/bookings/${bookingId}/receipt`;
+      
+      const response = await fetch(receiptUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to download receipt' }));
+        throw new Error(errorData.error || 'Failed to download receipt');
+      }
+
+      // Get the PDF blob
+      const blob = await response.blob();
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `receipt-${bookingId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Receipt downloaded successfully");
+    } catch (error: unknown) {
+      console.error("Error downloading receipt:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to download receipt";
+      toast.error(errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   if (!booking) return null;
 
@@ -538,54 +595,57 @@ function BookingActionModal({
                       <p className="text-xs text-slate-400 mb-1">Total Price</p>
                       <p className="text-lg font-bold text-green-400">₹{booking.totalPrice.toLocaleString()}</p>
                     </div>
+                    {booking.advanceAmount && (
+                      <div>
+                        <p className="text-xs text-slate-400 mb-1">Advance Paid</p>
+                        <p className="text-sm font-medium text-green-500">₹{booking.advanceAmount.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {booking.advanceAmount && booking.totalPrice && (
+                      <div>
+                        <p className="text-xs text-slate-400 mb-1">Remaining Amount</p>
+                        <p className="text-sm font-medium text-orange-400">₹{(booking.totalPrice - booking.advanceAmount).toLocaleString()}</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </div>
-            
-            {/* Reference Contacts */}
-            <Card className="bg-slate-900 border-slate-700">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg flex items-center space-x-2 text-white">
-                  <User className="h-5 w-5" />
-                  <span>Reference Contacts</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Reference 1 Name</p>
-                      <p className="text-sm font-medium text-white">{booking.reference1Name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Reference 1 Mobile</p>
-                      <p className="text-sm font-medium text-white">{booking.reference1Mobile}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Reference 2 Name</p>
-                      <p className="text-sm font-medium text-white">{booking.reference2Name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Reference 2 Mobile</p>
-                      <p className="text-sm font-medium text-white">{booking.reference2Mobile}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Documents Section */}
+            {/* Receipt Download */}
+            {booking.advancePaymentStatus === 'completed' && (
+              <Card className="bg-slate-900 border-slate-700">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center space-x-2 text-white">
+                    <FileText className="h-5 w-5" />
+                    <span>Payment Receipt</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-300">
+                    Download the advance payment receipt. The remaining amount must be paid at the time of vehicle pickup.
+                  </p>
+                  <Button
+                    onClick={() => handleDownloadReceipt(booking._id)}
+                    disabled={isDownloading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {isDownloading ? "Downloading..." : "Download Receipt PDF"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* License Information */}
             <Card className="bg-slate-900 border-slate-700">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center space-x-2 text-white">
                   <FileText className="h-5 w-5" />
-                  <span>Documents</span>
+                  <span>License Information</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
                 <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
@@ -598,39 +658,31 @@ function BookingActionModal({
                     </div>
                   </div>
                 </div>
-                
-                <div className="grid gap-4 md:grid-cols-3">
-                  <DocumentViewer 
-                    title="Driving License"
-                    fileUrl={booking.drivingLicenseImage}
-                    fileName="driving-license"
-                  />
-                  <DocumentViewer 
-                    title="Aadhar Card"
-                    fileUrl={booking.aadharCardImage}
-                    fileName="aadhar-card"
-                  />
-                  <DocumentViewer 
-                    title="Live Photo"
-                    fileUrl={booking.livePhoto}
-                    fileName="live-photo"
-                  />
-                </div>
               </CardContent>
             </Card>
 
             {/* Action Buttons */}
-            {booking.status === "pending" && (
+            {booking.status === "advance_paid" && (
               <Card className="bg-slate-900 border-slate-700">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg text-white">Review Booking</CardTitle>
+                  <CardTitle className="text-lg text-white">Verify Documents & Hand Over Car</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <Alert className="bg-blue-900 border-blue-700">
+                    <AlertDescription className="text-blue-100">
+                      <strong>Check the following:</strong>
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Aadhaar card is present and valid</li>
+                        <li>Driving license is valid (not expired)</li>
+                        <li>Deposit type (bike or cash) is provided</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
                   <div>
-                    <Label htmlFor="adminNotes" className="text-white mb-2 block">Admin Notes</Label>
+                    <Label htmlFor="adminNotes" className="text-white mb-2 block">Admin Notes (Optional)</Label>
                     <Textarea
                       id="adminNotes"
-                      placeholder="Add notes about the booking review..."
+                      placeholder="Add notes about the verification..."
                       value={adminNotes}
                       onChange={(e) => setAdminNotes(e.target.value)}
                       rows={4}
@@ -639,26 +691,29 @@ function BookingActionModal({
                   </div>
                   <div className="flex space-x-3 pt-2">
                     <Button 
-                      onClick={() => onReview("accept", adminNotes)}
+                      onClick={() => onVerify("accept", undefined, adminNotes)}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Accept Booking
+                      Accept & Hand Over
                     </Button>
                     <Button 
                       variant="destructive" 
-                      onClick={() => onReview("decline", adminNotes)}
+                      onClick={() => onVerify("reject", adminNotes || "Documents missing or expired", adminNotes)}
                       className="flex-1"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
-                      Decline Booking
+                      Reject (Non-Refundable)
                     </Button>
                   </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Note: If rejected, the advance payment will NOT be refunded and the time slot will be released.
+                  </p>
                 </CardContent>
               </Card>
             )}
 
-            {booking.status === "paid" && (
+            {booking.status === "verified" && (
               <Card className="bg-slate-900 border-slate-700">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg text-white">Start Rental</CardTitle>
@@ -695,28 +750,41 @@ function BookingActionModal({
           </div>
         );
 
-      case "review":
+      case "verify":
         return (
           <div className="space-y-4">
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertDescription className="text-blue-900">
+                <strong>Check the following:</strong>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Aadhaar card is present and valid</li>
+                  <li>Driving license is valid (not expired)</li>
+                  <li>Deposit type (bike or cash) is provided</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
             <div>
-              <Label htmlFor="adminNotes">Admin Notes</Label>
+              <Label htmlFor="adminNotes">Admin Notes (Optional)</Label>
               <Textarea
                 id="adminNotes"
-                placeholder="Add notes about the booking review..."
+                placeholder="Add notes about the verification..."
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
               />
             </div>
             <div className="flex space-x-2">
-              <Button onClick={() => onReview("accept", adminNotes)}>
+              <Button onClick={() => onVerify("accept", undefined, adminNotes)}>
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Accept Booking
+                Accept & Hand Over
               </Button>
-              <Button variant="destructive" onClick={() => onReview("decline", adminNotes)}>
+              <Button variant="destructive" onClick={() => onVerify("reject", adminNotes || "Documents missing or expired", adminNotes)}>
                 <XCircle className="h-4 w-4 mr-2" />
-                Decline Booking
+                Reject (Non-Refundable)
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Note: If rejected, the advance payment will NOT be refunded and the time slot will be released.
+            </p>
           </div>
         );
 
@@ -799,7 +867,7 @@ function BookingActionModal({
 
   const getModalTitle = () => {
     if (type === "view") return "Booking Details";
-    if (type === "review") return "Review Booking";
+    if (type === "verify") return "Verify Documents & Hand Over Car";
     if (type === "start") return "Start Rental";
     if (type === "complete") return "Complete Rental";
     return "Booking Details";

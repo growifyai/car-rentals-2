@@ -16,9 +16,11 @@ export interface CarCardData {
   driverAvailable: boolean;
   driverChargesPerDay: number;
   imageUrl?: string;
+  images?: string[]; // New: Multiple images array
   features: string[];
   available: boolean;
   depositAmount: number;
+  advanceAmount?: number;
   gearType?: string;
   fuelType?: string;
   seatingCapacity?: number;

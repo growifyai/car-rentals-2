@@ -62,3 +62,32 @@ export async function register(payload: RegisterPayload): Promise<AuthSession> {
   };
 }
 
+interface ForgotPasswordPayload {
+  email: string;
+}
+
+interface ResetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>("/api/auth/forgot-password", {
+    method: "POST",
+    json: payload,
+  });
+}
+
+export async function verifyResetToken(token: string): Promise<{ message: string; email: string }> {
+  return apiFetch<{ message: string; email: string }>(`/api/auth/verify-reset-token/${token}`, {
+    method: "GET",
+  });
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    json: payload,
+  });
+}
+

@@ -75,15 +75,29 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ## 🌐 Environment Variables
 
-Create a `.env.local` file in the root directory:
+**Required:** Create a `.env` file in the root directory (copy from `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your configuration:
 
 ```env
-# API Configuration
-NEXT_PUBLIC_API_BASE_URL=https://zion-car-rentals-backend.up.railway.app
+# API Configuration (REQUIRED)
+# For local development: http://localhost:5000
+# For production: https://zion-car-rentals-backend.up.railway.app
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+
+# Optional: Server-side API URL (if different from client-side)
+# API_BASE_URL=http://localhost:5000
 
 # Razorpay Configuration (optional)
-NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
+# Note: Razorpay key is typically provided by the backend API
+# NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_key_id
 ```
+
+**Note:** The `.env` file is required. The application will throw an error if `NEXT_PUBLIC_API_BASE_URL` is not set.
 
 ## 📦 Project Structure
 

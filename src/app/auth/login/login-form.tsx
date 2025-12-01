@@ -11,7 +11,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { login } from "@/lib/auth";
 import { toast } from "sonner";
-import Link from "next/link";
 
 interface LoginFormValues {
   email: string;
@@ -98,15 +97,6 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-
-        <div className="flex items-center justify-end">
-          <Link 
-            href="/auth/forgot-password" 
-            className="text-sm text-primary hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? "Signing in..." : "Sign in"}

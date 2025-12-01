@@ -648,25 +648,39 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                         <AlertDescription>Checking availability...</AlertDescription>
                       </Alert>
                     ) : availabilityInfo.available ? (
-                      <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <AlertDescription className="text-green-800 dark:text-green-200">
+                      <Alert 
+                        className="border-2 shadow-lg"
+                        style={{
+                          backgroundColor: '#86efac',
+                          borderColor: '#4ade80',
+                          boxShadow: '0 0 15px rgba(74, 222, 128, 0.4), 0 0 30px rgba(74, 222, 128, 0.2)'
+                        }}
+                      >
+                        <CheckCircle className="h-5 w-5" style={{ color: '#15803d' }} />
+                        <AlertDescription className="font-semibold text-base" style={{ color: '#14532d' }}>
                           ✓ Car is available for the selected time slot
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
+                      <Alert 
+                        className="border-2 shadow-lg"
+                        style={{
+                          backgroundColor: '#fca5a5',
+                          borderColor: '#f87171',
+                          boxShadow: '0 0 15px rgba(248, 113, 113, 0.4), 0 0 30px rgba(248, 113, 113, 0.2)'
+                        }}
+                      >
+                        <AlertCircle className="h-5 w-5" style={{ color: '#dc2626' }} />
                         <AlertDescription>
-                          <p className="font-semibold mb-2">Car is not available for the selected time.</p>
+                          <p className="font-semibold mb-2" style={{ color: '#991b1b' }}>Car is not available for the selected time.</p>
                           {availabilityInfo.nextAvailableStartTime && (
-                            <p className="text-sm">Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                            <p className="text-sm" style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
                           )}
                           {availabilityInfo.maxDurationHours !== null && availabilityInfo.maxDurationHours !== undefined && availabilityInfo.maxDurationHours > 0 && (
-                            <p className="text-sm">Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
+                            <p className="text-sm" style={{ color: '#7f1d1d' }}>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
                           )}
                           {availabilityInfo.maxDurationHours === 0 && (
-                            <p className="text-sm">No duration available at this time. Please select a different start time.</p>
+                            <p className="text-sm" style={{ color: '#7f1d1d' }}>No duration available at this time. Please select a different start time.</p>
                           )}
                         </AlertDescription>
                       </Alert>
@@ -961,15 +975,22 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     <p className="text-muted-foreground">Checking availability...</p>
                   </div>
                 ) : availabilityInfo && !availabilityInfo.available ? (
-                  <Alert variant="destructive" className="my-4">
-                    <AlertCircle className="h-4 w-4" />
+                  <Alert 
+                    className="border-2 shadow-lg my-4"
+                    style={{
+                      backgroundColor: '#fca5a5',
+                      borderColor: '#f87171',
+                      boxShadow: '0 0 15px rgba(248, 113, 113, 0.4), 0 0 30px rgba(248, 113, 113, 0.2)'
+                    }}
+                  >
+                    <AlertCircle className="h-5 w-5" style={{ color: '#dc2626' }} />
                     <AlertDescription>
-                      <p className="font-semibold mb-2">Car is not available for the selected time.</p>
+                      <p className="font-semibold mb-2" style={{ color: '#991b1b' }}>Car is not available for the selected time.</p>
                       {availabilityInfo.nextAvailableStartTime && (
-                        <p>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                        <p style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
                       )}
                       {availabilityInfo.maxDurationHours && (
-                        <p>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
+                        <p style={{ color: '#7f1d1d' }}>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
                       )}
                     </AlertDescription>
                   </Alert>

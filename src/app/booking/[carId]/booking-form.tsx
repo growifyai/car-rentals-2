@@ -997,7 +997,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
 
                     {/* Important Terms Section */}
                     <div className="space-y-6 sm:space-y-8">
-                      <Alert variant="destructive" className="flex flex-col gap-3">
+                      <Alert variant="destructive" className="flex flex-col gap-3" style={{ position: 'static', zIndex: 'auto' }}>
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-6 w-6 flex-shrink-0" />
                           <AlertTitle className="text-lg sm:text-xl lg:text-2xl font-bold m-0">

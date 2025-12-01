@@ -235,7 +235,7 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="text-muted-foreground">
-            Home delivery is also available after booking. Contact - 91xxxxx, charges will be applicable.
+            Home delivery is also available after booking. Contact - 9100664083, charges will be applicable.
           </p>
         </CardContent>
       </Card>
@@ -255,7 +255,7 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
             <Button
               onClick={handleDownloadReceipt}
               disabled={isDownloading}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto border-2 border-white"
             >
               <Download className="size-4 mr-2" />
               {isDownloading ? "Downloading..." : "Download Receipt PDF"}

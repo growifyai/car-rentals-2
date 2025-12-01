@@ -628,7 +628,7 @@ function BookingActionModal({
                   <Button
                     onClick={() => handleDownloadReceipt(booking._id)}
                     disabled={isDownloading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-blue-600 hover:bg-blue-700 text-white border-2 border-white"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     {isDownloading ? "Downloading..." : "Download Receipt PDF"}

@@ -180,3 +180,50 @@ div[style*="position: fixed"][style*="z-index"]:has(iframe[name="razorpay-checko
   cursor: default !important;
 }
 
+/* Global cursor pointer for all clickable elements */
+button:not(:disabled),
+a:not([aria-disabled="true"]):not([disabled]),
+[role="button"]:not([aria-disabled="true"]):not([disabled]),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+[onclick]:not([disabled]),
+label[for],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled),
+[data-slot="checkbox"]:not([disabled]):not([aria-disabled="true"]),
+[data-slot="select-trigger"]:not([disabled]):not([aria-disabled="true"]),
+[data-slot="select-item"]:not([disabled]):not([data-disabled]),
+.clickable,
+[class*="cursor-pointer"] {
+  cursor: pointer !important;
+}
+
+/* Elements with onClick handlers should have pointer cursor */
+*[onclick] {
+  cursor: pointer !important;
+}
+
+/* Disabled state should show not-allowed */
+button:disabled,
+input:disabled,
+select:disabled,
+[disabled],
+[aria-disabled="true"],
+[data-disabled="true"] {
+  cursor: not-allowed !important;
+}
+
+/* Links should always have pointer unless disabled */
+a:not([disabled]):not([aria-disabled="true"]) {
+  cursor: pointer !important;
+}
+
+/* Clickable cards and interactive elements */
+[data-slot="card"][onclick],
+.card[onclick],
+div[onclick]:not([role]):not(input):not(button):not(a) {
+  cursor: pointer !important;
+}
+

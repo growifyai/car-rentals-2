@@ -110,8 +110,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
   const { token, user } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 4;
   const [nonRefundableAccepted, setNonRefundableAccepted] = useState(false);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [availabilityInfo, setAvailabilityInfo] = useState<{ available: boolean; nextAvailableStartTime?: string; maxDurationHours?: number } | null>(null);
@@ -155,23 +153,48 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
       return router.push("/auth/login");
     }
 
-    // If we're on step 4, process payment first
-    if (currentStep === 4) {
-      if (!nonRefundableAccepted) {
-        toast.error("Please accept the non-refundable terms before proceeding with payment");
-        return;
-      }
+    // Validate all fields since all steps are visible
+    const errors: string[] = [];
 
-      if (!availabilityInfo?.available) {
-        toast.error("Car is not available for the selected time. Please select a different time.");
-        return;
-      }
+    // Step 1 validations
+    if (!values.startTime) errors.push("Start time is required");
+    if (!validateFutureDate(values.startTime)) errors.push("Start time must be in the future");
+    if (values.duration % 12 !== 0) errors.push("Duration must be in multiples of 12 hours");
+    
+    // Step 2 validations
+    if (!validateName(values.fullName)) errors.push("Full name must be at least 2 characters and contain only letters");
+    if (!validateName(values.guardianName)) errors.push("Guardian name must be at least 2 characters and contain only letters");
+    if (!values.residentialAddress || values.residentialAddress.length < 10) errors.push("Residential address must be at least 10 characters");
+    if (!validateEmail(values.email)) errors.push("Please enter a valid email address");
+    if (!validateMobile(values.mobile)) errors.push("Please enter a valid 10-digit mobile number");
+    if (!values.occupation || values.occupation.length < 2) errors.push("Occupation must be at least 2 characters");
+    
+    // Step 3 validations
+    if (!validateLicenseNumber(values.drivingLicenseNumber)) errors.push("License number must be at least 5 characters and contain only uppercase letters and numbers");
+    if (!values.licenseExpiryDate) errors.push("License expiry date is required");
+    if (!validateFutureDate(values.licenseExpiryDate)) errors.push("License must not be expired");
+    if (depositType === "bike" && (!values.bikeDetails || values.bikeDetails.length === 0)) errors.push("Two wheeler details are required when deposit type is two wheeler");
 
-      // Final availability check before payment
-      if (!availabilityInfo || !availabilityInfo.available) {
-        toast.error("Car is not available for the selected time. Please check availability and try again.");
-        return;
-      }
+    // Step 4 validations
+    if (!nonRefundableAccepted) {
+      errors.push("Please accept the non-refundable terms before proceeding with payment");
+    }
+
+    if (!availabilityInfo?.available) {
+      errors.push("Car is not available for the selected time. Please select a different time.");
+    }
+
+    if (errors.length > 0) {
+      toast.error(errors[0]); // Show first error
+      // Scroll to first error field if possible
+      return;
+    }
+
+    // Final availability check before payment
+    if (!availabilityInfo || !availabilityInfo.available) {
+      toast.error("Car is not available for the selected time. Please check availability and try again.");
+      return;
+    }
 
       // Double-check availability with current values
       try {
@@ -214,31 +237,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
         if (!orderResponse.success || !orderResponse.orderId) {
           throw new Error("Failed to create payment order. Please try again.");
         }
-
-        // Helper functions to manage dialog z-index
-        const lowerDialogZIndex = () => {
-          const dialogOverlay = document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement;
-          const dialogContent = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
-          if (dialogOverlay) {
-            (dialogOverlay as any).__originalZIndex = dialogOverlay.style.zIndex || getComputedStyle(dialogOverlay).zIndex;
-            dialogOverlay.style.zIndex = '1';
-          }
-          if (dialogContent) {
-            (dialogContent as any).__originalZIndex = dialogContent.style.zIndex || getComputedStyle(dialogContent).zIndex;
-            dialogContent.style.zIndex = '1';
-          }
-        };
-
-        const restoreDialogZIndex = () => {
-          const dialogOverlay = document.querySelector('[data-slot="dialog-overlay"]') as HTMLElement;
-          const dialogContent = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
-          if (dialogOverlay && (dialogOverlay as any).__originalZIndex) {
-            dialogOverlay.style.zIndex = (dialogOverlay as any).__originalZIndex;
-          }
-          if (dialogContent && (dialogContent as any).__originalZIndex) {
-            dialogContent.style.zIndex = (dialogContent as any).__originalZIndex;
-          }
-        };
 
         // Step 2: Open Razorpay checkout
         const options = {
@@ -318,7 +316,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
               };
 
               const bookingResponse = await createBooking(bookingData, token!);
-              restoreDialogZIndex();
               toast.success("Booking confirmed! Your advance payment has been processed and the car is now blocked for your selected time.");
               
               // Extract booking ID from response if available
@@ -331,7 +328,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                 router.push("/bookings");
               }
             } catch (error) {
-              restoreDialogZIndex();
               console.error("Payment verification/booking creation error:", error);
               const message = (error as { message?: string }).message ?? "Failed to verify payment or create booking.";
               toast.error(message);
@@ -349,8 +345,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
           },
           modal: {
             ondismiss: function() {
-              // Restore dialog z-index when payment is cancelled
-              restoreDialogZIndex();
               setIsSubmitting(false);
               toast.error("Payment cancelled");
             },
@@ -359,13 +353,9 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
           },
         };
 
-        // Lower dialog z-index before opening Razorpay
-        lowerDialogZIndex();
-
         // Open Razorpay checkout
         const razorpayWindow = (window as any).Razorpay;
         if (!razorpayWindow) {
-          restoreDialogZIndex();
           throw new Error("Razorpay SDK not loaded. Please refresh the page.");
         }
         
@@ -374,7 +364,6 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
         // Set high z-index for Razorpay modal after opening
         razorpayInstance.on('payment.failed', function(response: any) {
           console.error('Payment failed:', response);
-          restoreDialogZIndex();
           setIsSubmitting(false);
           toast.error("Payment failed. Please try again.");
         });
@@ -417,91 +406,23 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
         toast.error(message);
         setIsSubmitting(false);
       }
-      return;
-    }
-
-    // For steps 1-3, just validate and move to next step
-    const errors: string[] = [];
-
-    // Basic validations
-    if (!values.startTime) errors.push("Start time is required");
-    if (!validateFutureDate(values.startTime)) errors.push("Start time must be in the future");
-    if (values.duration % 12 !== 0) errors.push("Duration must be in multiples of 12 hours");
-    if (!validateName(values.fullName)) errors.push("Full name must be at least 2 characters and contain only letters");
-    if (!validateName(values.guardianName)) errors.push("Guardian name must be at least 2 characters and contain only letters");
-    if (!values.residentialAddress || values.residentialAddress.length < 10) errors.push("Residential address must be at least 10 characters");
-    if (!validateEmail(values.email)) errors.push("Please enter a valid email address");
-    if (!validateMobile(values.mobile)) errors.push("Please enter a valid 10-digit mobile number");
-    if (!values.occupation || values.occupation.length < 2) errors.push("Occupation must be at least 2 characters");
-    if (!validateLicenseNumber(values.drivingLicenseNumber)) errors.push("License number must be at least 5 characters and contain only uppercase letters and numbers");
-    if (!values.licenseExpiryDate) errors.push("License expiry date is required");
-    if (!validateFutureDate(values.licenseExpiryDate)) errors.push("License must not be expired");
-    if (depositType === "bike" && (!values.bikeDetails || values.bikeDetails.length === 0)) errors.push("Two wheeler details are required when deposit type is two wheeler");
-
-    if (errors.length > 0) {
-      toast.error(errors[0]); // Show first error
-      return;
-    }
-
-    // If all validations pass, move to next step
-    nextStep();
   };
 
-  const nextStep = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const validateCurrentStep = async () => {
-    const fieldsToValidate = getFieldsForStep(currentStep);
-    const isValid = await form.trigger(fieldsToValidate);
-    if (isValid) {
-      nextStep();
-    }
-  };
-
-  const getFieldsForStep = (step: number): (keyof BookingFormValues)[] => {
-    switch (step) {
-      case 1: return ["startTime", "duration"];
-      case 2: return ["fullName", "guardianName", "guardianRelation", "residentialAddress", "email", "mobile", "occupation"];
-      case 3: return ["drivingLicenseNumber", "licenseExpiryDate", "depositType", "bikeDetails"];
-      case 4: return []; // Payment step has no form fields
-      default: return [];
-    }
-  };
-
-  // Check availability when moving to step 4
+  // Check availability when startTime or duration changes
   useEffect(() => {
-    if (currentStep === 4) {
-      checkAvailability();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep]);
+    const startTime = form.watch("startTime");
+    const duration = form.watch("duration");
+    
+    // Debounce the check to avoid too many API calls
+    const timeoutId = setTimeout(() => {
+      if (startTime && duration) {
+        checkAvailability();
+      }
+    }, 500); // Wait 500ms after user stops typing/selecting
 
-  // Check availability when startTime or duration changes in Step 1
-  useEffect(() => {
-    if (currentStep === 1) {
-      const startTime = form.watch("startTime");
-      const duration = form.watch("duration");
-      
-      // Debounce the check to avoid too many API calls
-      const timeoutId = setTimeout(() => {
-        if (startTime && duration) {
-          checkAvailability();
-        }
-      }, 500); // Wait 500ms after user stops typing/selecting
-
-      return () => clearTimeout(timeoutId);
-    }
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("startTime"), form.watch("duration"), currentStep]);
+  }, [form.watch("startTime"), form.watch("duration")]);
 
   const checkAvailability = async () => {
     const startTime = form.getValues("startTime");
@@ -560,21 +481,21 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8 xl:space-y-10">
       {/* Progress Indicator */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Booking Progress</h2>
-            <span className="text-sm text-muted-foreground">Step {currentStep} of {totalSteps}</span>
+        <CardContent className="p-4 sm:p-6 lg:p-8 xl:p-10">
+          <div className="mb-3 sm:mb-4 lg:mb-5 xl:mb-6">
+            <h2 className="text-base sm:text-lg lg:text-xl xl:text-2xl font-semibold mb-2">Booking Form</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Fill out all sections below to complete your booking
+            </p>
           </div>
-          <div className="flex space-x-2">
-            {Array.from({ length: totalSteps }, (_, i) => (
+          <div className="flex space-x-1 sm:space-x-2 lg:space-x-3 xl:space-x-4">
+            {Array.from({ length: 4 }, (_, i) => (
               <div
                 key={i}
-                className={`flex-1 h-2 rounded-full ${
-                  i + 1 <= currentStep ? "bg-primary" : "bg-muted"
-                }`}
+                className="flex-1 h-1.5 sm:h-2 lg:h-2.5 xl:h-3 rounded-full bg-primary/30"
               />
             ))}
           </div>
@@ -585,16 +506,16 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           {/* Step 1: Booking Details */}
-          {currentStep === 1 && (
+          <div>
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-primary" />
+              <CardHeader className="p-4 sm:p-6 lg:p-8 xl:p-10 pb-3 sm:pb-4 lg:pb-6 xl:pb-8">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg lg:text-xl xl:text-2xl">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 xl:h-7 xl:w-7 text-primary" />
                   <span>Booking Details</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4 sm:space-y-6 lg:space-y-8 xl:space-y-10 p-4 sm:p-6 lg:p-8 xl:p-10 pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
                   <FormField
                     control={form.control}
                     name="startTime"
@@ -754,19 +675,19 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                 )}
               </CardContent>
             </Card>
-          )}
+          </div>
 
           {/* Step 2: Personal Information */}
-          {currentStep === 2 && (
+          <div>
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <User className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6 lg:p-8 xl:p-10 pb-3 sm:pb-4 lg:pb-6 xl:pb-8">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg lg:text-xl xl:text-2xl">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 xl:h-7 xl:w-7" />
                   <span>Personal Information</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4 sm:space-y-6 lg:space-y-8 xl:space-y-10 p-4 sm:p-6 lg:p-8 xl:p-10 pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
                   <FormField
                     control={form.control}
                     name="fullName"
@@ -907,19 +828,19 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                 />
               </CardContent>
             </Card>
-          )}
+          </div>
 
           {/* Step 3: License & Deposit */}
-          {currentStep === 3 && (
+          <div>
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6 lg:p-8 xl:p-10 pb-3 sm:pb-4 lg:pb-6 xl:pb-8">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg lg:text-xl xl:text-2xl">
+                  <FileText className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 xl:h-7 xl:w-7" />
                   <span>License & Deposit Information</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <CardContent className="space-y-4 sm:space-y-6 lg:space-y-8 xl:space-y-10 p-4 sm:p-6 lg:p-8 xl:p-10 pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
                   <FormField
                     control={form.control}
                     name="drivingLicenseNumber"
@@ -1023,24 +944,24 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                 </Alert>
               </CardContent>
             </Card>
-          )}
+          </div>
 
           {/* Step 4: Advance Payment */}
-          {currentStep === 4 && (
+          <div>
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
+              <CardHeader className="p-4 sm:p-6 lg:p-8 xl:p-10 pb-3 sm:pb-4 lg:pb-6 xl:pb-8">
+                <CardTitle className="flex items-center space-x-2 text-base sm:text-lg lg:text-xl xl:text-2xl">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 xl:h-7 xl:w-7 text-primary" />
                   <span>Pay Advance Fee to Block Car</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 sm:space-y-8 lg:space-y-10 xl:space-y-12 p-4 sm:p-6 lg:p-8 xl:p-10 pt-0">
                 {checkingAvailability ? (
-                  <div className="text-center py-8">
+                  <div className="text-center py-12">
                     <p className="text-muted-foreground">Checking availability...</p>
                   </div>
                 ) : availabilityInfo && !availabilityInfo.available ? (
-                  <Alert variant="destructive">
+                  <Alert variant="destructive" className="my-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       <p className="font-semibold mb-2">Car is not available for the selected time.</p>
@@ -1054,38 +975,50 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   </Alert>
                 ) : (
                   <>
-                    <div className="bg-muted p-4 rounded-lg space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">Advance Amount:</span>
-                        <span className="text-lg font-bold text-primary">
-                          <IndianRupee className="inline h-4 w-4" />
-                          {(car.advanceAmount || 500).toLocaleString()}
-                        </span>
+                    {/* Advance Amount Section */}
+                    <div className="bg-gradient-to-r from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 p-6 sm:p-8 lg:p-10 xl:p-12 rounded-xl border-2 border-primary/20 space-y-3 sm:space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                        <div>
+                          <span className="font-semibold text-lg sm:text-xl lg:text-2xl xl:text-3xl text-foreground block mb-1">
+                            Advance Amount
+                          </span>
+                          <p className="text-sm sm:text-base lg:text-lg text-muted-foreground">
+                            To block your selected time slot
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <span className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-primary flex items-center gap-1 sm:gap-2">
+                            <IndianRupee className="h-7 w-7 sm:h-8 sm:w-8 lg:h-9 lg:w-9" />
+                            {(car.advanceAmount || 500).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        This amount will be used to block the car for your selected time slot.
-                      </p>
                     </div>
 
-                    <div className="space-y-4">
-                      <Alert variant="destructive" className="mb-0 [&>svg]:mr-1 [&>svg]:ml-0">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle className="ml-2">Important: Non-Refundable Terms</AlertTitle>
-                        <AlertDescription className="mt-1 ml-2">
-                          <p className="leading-relaxed">The advance fee is <strong className="font-bold">NON-REFUNDABLE</strong> if your required documents (Aadhaar card + valid driving license) are missing or expired during physical verification when you arrive to pick up the car.</p>
+                    {/* Important Terms Section */}
+                    <div className="space-y-6 sm:space-y-8">
+                      <Alert variant="destructive" className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-6 w-6 flex-shrink-0" />
+                          <AlertTitle className="text-lg sm:text-xl lg:text-2xl font-bold m-0">
+                            Important: Non-Refundable Terms
+                          </AlertTitle>
+                        </div>
+                        <AlertDescription className="text-base sm:text-lg lg:text-xl leading-relaxed m-0">
+                          <span>The advance fee is <strong className="font-bold">NON-REFUNDABLE</strong> if your required documents (Aadhaar card + valid driving license) are missing or expired during physical verification when you arrive to pick up the car.</span>
                         </AlertDescription>
                       </Alert>
 
-                      <div className="flex items-start gap-3 p-4 border rounded-lg bg-background">
+                      <div className="flex items-start gap-3 sm:gap-4 py-2">
                         <Checkbox
                           id="non-refundable-accept"
                           checked={nonRefundableAccepted}
                           onCheckedChange={(checked) => setNonRefundableAccepted(checked === true)}
-                          className="mt-0.5 flex-shrink-0"
+                          className="mt-1 flex-shrink-0 h-6 w-6 sm:h-7 sm:w-7"
                         />
                         <label
                           htmlFor="non-refundable-accept"
-                          className="text-sm leading-relaxed cursor-pointer flex-1"
+                          className="text-base sm:text-lg lg:text-xl leading-relaxed cursor-pointer flex-1 font-medium"
                         >
                           I understand that the advance fee is non-refundable if my required documents 
                           (Aadhaar card + valid driving license) are missing or expired during verification. 
@@ -1094,61 +1027,99 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-                      <p className="text-sm text-blue-900 dark:text-blue-100">
-                        <strong>What happens next?</strong>
-                      </p>
-                      <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
-                        <li>After payment, your booking will be created with status "Advance Paid"</li>
-                        <li>The car will be immediately blocked for your selected time slot</li>
-                        <li>When you arrive, admin will verify your documents</li>
-                        <li>If documents are valid, the car will be handed over</li>
-                        <li>If documents are missing/expired, the booking will be rejected and advance will not be refunded</li>
+                    {/* What Happens Next Section */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30 p-6 sm:p-8 lg:p-10 xl:p-12 rounded-xl border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-500 dark:bg-blue-600 flex items-center justify-center">
+                          <Clock className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
+                        </div>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900 dark:text-blue-100">
+                          What happens next?
+                        </p>
+                      </div>
+                      <ul className="space-y-3 sm:space-y-4 lg:space-y-5 text-base sm:text-lg lg:text-xl text-blue-900 dark:text-blue-100 mb-6">
+                        <li className="flex items-start gap-3">
+                          <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span>After payment, your booking will be created with status <strong>"Advance Paid"</strong></span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span>The car will be immediately blocked for your selected time slot</span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span>When you arrive, admin will verify your documents</span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span>If documents are valid, the car will be handed over</span>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span>If documents are missing/expired, the booking will be rejected and advance will not be refunded</span>
+                        </li>
                       </ul>
+                      <div className="pt-4 border-t border-blue-200 dark:border-blue-700">
+                        <p className="text-base sm:text-lg lg:text-xl font-semibold text-blue-900 dark:text-blue-100 mb-3">
+                          Need help? Contact us for any queries:
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-base sm:text-lg lg:text-xl">
+                          <a 
+                            href="tel:9100664083" 
+                            className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline transition-colors"
+                          >
+                            <Phone className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+                            <span>9100664083</span>
+                          </a>
+                          <a 
+                            href="mailto:Zioncarrentals90@gmail.com" 
+                            className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline transition-colors"
+                          >
+                            <Mail className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
+                            <span>Zioncarrentals90@gmail.com</span>
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </>
                 )}
               </CardContent>
             </Card>
-          )}
+          </div>
 
-
-          {/* Navigation Buttons */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={prevStep}
-                  disabled={currentStep === 1}
-                >
-                  Previous
-                </Button>
-                
-                {currentStep < totalSteps ? (
-                  <Button
-                    type="button"
-                    onClick={validateCurrentStep}
-                    disabled={
-                      // Disable if checking availability
-                      checkingAvailability ||
-                      // Disable in Step 1 if car is not available
-                      (currentStep === 1 && availabilityInfo !== null && !availabilityInfo.available)
-                    }
-                  >
-                    {checkingAvailability ? "Checking..." : "Next Step"}
-                  </Button>
+          {/* Submit Button - Show at bottom of all steps */}
+          <Card className="border-2">
+            <CardContent className="p-6 sm:p-8 lg:p-10 xl:p-12 space-y-4">
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting || 
+                  !nonRefundableAccepted || 
+                  !availabilityInfo?.available ||
+                  checkingAvailability
+                }
+                className="w-full text-base sm:text-lg lg:text-xl font-semibold py-10 sm:py-12 lg:py-14 h-auto shadow-lg hover:shadow-xl transition-all"
+                size="lg"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Clock className="h-5 w-5 animate-spin" />
+                    Processing...
+                  </span>
                 ) : (
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || (currentStep === 4 && (!nonRefundableAccepted || !availabilityInfo?.available))}
-                    className="min-w-[120px]"
-                  >
-                    {isSubmitting ? "Processing..." : "Pay & Confirm Booking"}
-                  </Button>
+                  "Pay & Confirm Booking"
                 )}
-              </div>
+              </Button>
+              {!nonRefundableAccepted && (
+                <p className="text-base sm:text-lg text-muted-foreground text-center py-2">
+                  Please accept the non-refundable terms in Step 4 to proceed
+                </p>
+              )}
+              {!availabilityInfo?.available && availabilityInfo !== null && (
+                <p className="text-base sm:text-lg text-destructive text-center py-2">
+                  Car is not available for the selected time. Please adjust your booking details.
+                </p>
+              )}
             </CardContent>
           </Card>
         </form>

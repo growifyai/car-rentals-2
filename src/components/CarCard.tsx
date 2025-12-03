@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-import { BadgeCheck, Car as CarIcon, IndianRupee, Sparkles, Settings, Fuel, Users } from "lucide-react";
+import { BadgeCheck, Car as CarIcon, Settings, Fuel, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 import type { CarCardData } from "@/types/cars";
@@ -96,14 +96,6 @@ export function CarCard({
             <div className="flex items-center gap-2">
               <CarIcon className="size-4 text-primary" />
               <span>₹{car.pricing.price24hr.toLocaleString()}/24hr</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-primary" />
-              <span className="capitalize">{car.type} service</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <IndianRupee className="size-4 text-primary" />
-              <span>Deposit ₹{car.depositAmount.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-2">
               <BadgeCheck className="size-4 text-primary" />

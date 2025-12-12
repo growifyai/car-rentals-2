@@ -20,15 +20,15 @@ import { createBooking, createRazorpayOrder, verifyRazorpayPayment } from "@/lib
 import type { CarDetailData } from "@/types/cars";
 import { getApiBaseUrl } from "@/lib/env";
 import { toast } from "sonner";
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  FileText, 
-  CreditCard, 
+import {
+  Calendar,
+  Clock,
+  User,
+  MapPin,
+  Phone,
+  Mail,
+  FileText,
+  CreditCard,
   AlertCircle,
   CheckCircle,
   IndianRupee
@@ -99,14 +99,18 @@ const validateFutureDate = (dateString: string) => {
 };
 
 export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }: BookingFormProps) {
-  const form = useForm<BookingFormValues>({ 
+  // Premium cars always have driver included
+  const isPremium = car.type === "premium";
+  const driverIncluded = isPremium || initialWithDriver;
+
+  const form = useForm<BookingFormValues>({
     defaultValues: {
       ...defaultValues,
-      withDriver: initialWithDriver,
+      withDriver: driverIncluded,
     },
     mode: "onChange"
   });
-  
+
   const { token, user } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,7 +124,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
   const duration = form.watch("duration") ?? 12;
   const withDriver = form.watch("withDriver");
   const depositType = form.watch("depositType");
-  
+
   // Calculate base price based on duration using the pricing tiers
   let totalRental = 0;
   if (duration === 12) {
@@ -140,9 +144,9 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     const days = Math.ceil(duration / 24);
     totalRental = car.pricing.price24hr * days;
   }
-  
-  // Add driver charges if selected
-  if (withDriver && car.driverAvailable) {
+
+  // Add driver charges if selected (only for non-premium cars - premium includes driver)
+  if (withDriver && car.driverAvailable && car.type !== "premium") {
     const days = Math.ceil(duration / 24);
     totalRental += car.driverChargesPerDay * days;
   }
@@ -160,7 +164,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     if (!values.startTime) errors.push("Start time is required");
     if (!validateFutureDate(values.startTime)) errors.push("Start time must be in the future");
     if (values.duration % 12 !== 0) errors.push("Duration must be in multiples of 12 hours");
-    
+
     // Step 2 validations
     if (!validateName(values.fullName)) errors.push("Full name must be at least 2 characters and contain only letters");
     if (!validateName(values.guardianName)) errors.push("Guardian name must be at least 2 characters and contain only letters");
@@ -168,7 +172,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
     if (!validateEmail(values.email)) errors.push("Please enter a valid email address");
     if (!validateMobile(values.mobile)) errors.push("Please enter a valid 10-digit mobile number");
     if (!values.occupation || values.occupation.length < 2) errors.push("Occupation must be at least 2 characters");
-    
+
     // Step 3 validations
     if (!validateLicenseNumber(values.drivingLicenseNumber)) errors.push("License number must be at least 5 characters and contain only uppercase letters and numbers");
     if (!values.licenseExpiryDate) errors.push("License expiry date is required");
@@ -196,223 +200,223 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
       return;
     }
 
-      // Double-check availability with current values
-      try {
-        const finalCheck = await fetch(`${getApiBaseUrl()}/api/cars/${car.id}/check-availability`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({
-            startTime: new Date(values.startTime).toISOString(),
-            duration: values.duration
-          })
-        });
+    // Double-check availability with current values
+    try {
+      const finalCheck = await fetch(`${getApiBaseUrl()}/api/cars/${car.id}/check-availability`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          startTime: new Date(values.startTime).toISOString(),
+          duration: values.duration
+        })
+      });
 
-        const finalCheckData = await finalCheck.json();
-        if (!finalCheckData.available) {
-          toast.error(`Car is no longer available. Next available: ${finalCheckData.nextAvailableStartTime ? new Date(finalCheckData.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
-          setAvailabilityInfo(finalCheckData);
-          return;
-        }
-      } catch (error) {
-        console.error('Final availability check error:', error);
-        toast.error('Failed to verify availability. Please try again.');
+      const finalCheckData = await finalCheck.json();
+      if (!finalCheckData.available) {
+        toast.error(`Car is no longer available. Next available: ${finalCheckData.nextAvailableStartTime ? new Date(finalCheckData.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
+        setAvailabilityInfo(finalCheckData);
         return;
       }
+    } catch (error) {
+      console.error('Final availability check error:', error);
+      toast.error('Failed to verify availability. Please try again.');
+      return;
+    }
 
-      setIsSubmitting(true);
-      try {
-        // Step 1: Create Razorpay order
-        const advanceAmount = car.advanceAmount || 500;
-        const orderResponse = await createRazorpayOrder(
-          car.id,
-          new Date(values.startTime).toISOString(),
-          values.duration,
-          advanceAmount,
-          token
-        );
+    setIsSubmitting(true);
+    try {
+      // Step 1: Create Razorpay order
+      const advanceAmount = car.advanceAmount || 500;
+      const orderResponse = await createRazorpayOrder(
+        car.id,
+        new Date(values.startTime).toISOString(),
+        values.duration,
+        advanceAmount,
+        token
+      );
 
-        if (!orderResponse.success || !orderResponse.orderId) {
-          throw new Error("Failed to create payment order. Please try again.");
-        }
-
-        // Step 2: Open Razorpay checkout
-        const options = {
-          key: orderResponse.keyId,
-          amount: orderResponse.amount,
-          currency: orderResponse.currency,
-          name: "Zion Car Rentals",
-          description: `Advance payment for ${car.name || 'car rental'}`,
-          order_id: orderResponse.orderId,
-          // Ensure Razorpay modal appears above everything
-          config: {
-            display: {
-              blocks: {
-                banks: {
-                  name: "All payment methods",
-                  instruments: [
-                    {
-                      method: "card",
-                    },
-                    {
-                      method: "netbanking",
-                    },
-                    {
-                      method: "wallet",
-                    },
-                    {
-                      method: "upi",
-                    },
-                  ],
-                },
-              },
-              sequence: ["block.banks"],
-              preferences: {
-                show_default_blocks: true,
-              },
-            },
-          },
-          handler: async function (razorpayResponse: any) {
-            try {
-              // Step 3: Verify payment
-              const verificationResponse = await verifyRazorpayPayment(
-                razorpayResponse.razorpay_order_id,
-                razorpayResponse.razorpay_payment_id,
-                razorpayResponse.razorpay_signature,
-                car.id,
-                new Date(values.startTime).toISOString(),
-                values.duration,
-                advanceAmount,
-                token!
-              );
-
-              if (!verificationResponse.success || verificationResponse.paymentStatus !== 'completed') {
-                throw new Error("Payment verification failed. Please contact support.");
-              }
-
-              // Step 4: Create booking after successful payment verification
-              const bookingData = {
-                carId: car.id,
-                startTime: new Date(values.startTime).toISOString(),
-                duration: values.duration,
-                fullName: values.fullName,
-                guardianName: values.guardianName,
-                guardianRelation: values.guardianRelation,
-                residentialAddress: values.residentialAddress,
-                email: values.email,
-                mobile: values.mobile,
-                occupation: values.occupation,
-                drivingLicenseNumber: values.drivingLicenseNumber,
-                licenseExpiryDate: new Date(values.licenseExpiryDate).toISOString(),
-                depositType: values.depositType,
-                bikeDetails: values.depositType === "bike" && values.bikeDetails ? values.bikeDetails : null,
-                withDriver: values.withDriver,
-                homeDelivery: false,
-                deliveryDistance: 0,
-                paymentId: verificationResponse.paymentId,
-                paymentStatus: verificationResponse.paymentStatus
-              };
-
-              const bookingResponse = await createBooking(bookingData, token!);
-              toast.success("Booking confirmed! Your advance payment has been processed and the car is now blocked for your selected time.");
-              
-              // Extract booking ID from response if available
-              const bookingId = (bookingResponse as any)?.booking?._id || (bookingResponse as any)?.booking?.id || "";
-              
-              if (onBookingSuccess && bookingId) {
-                onBookingSuccess(bookingId);
-              } else {
-                // Fallback to redirect if no callback provided
-                router.push("/bookings");
-              }
-            } catch (error) {
-              console.error("Payment verification/booking creation error:", error);
-              const message = (error as { message?: string }).message ?? "Failed to verify payment or create booking.";
-              toast.error(message);
-            } finally {
-              setIsSubmitting(false);
-            }
-          },
-          prefill: {
-            name: values.fullName,
-            email: values.email,
-            contact: values.mobile,
-          },
-          theme: {
-            color: "#f97316",
-          },
-          modal: {
-            ondismiss: function() {
-              setIsSubmitting(false);
-              toast.error("Payment cancelled");
-            },
-            // Ensure modal is accessible
-            animation: true,
-          },
-        };
-
-        // Open Razorpay checkout
-        const razorpayWindow = (window as any).Razorpay;
-        if (!razorpayWindow) {
-          throw new Error("Razorpay SDK not loaded. Please refresh the page.");
-        }
-        
-        const razorpayInstance = new razorpayWindow(options);
-        
-        // Set high z-index for Razorpay modal after opening
-        razorpayInstance.on('payment.failed', function(response: any) {
-          console.error('Payment failed:', response);
-          setIsSubmitting(false);
-          toast.error("Payment failed. Please try again.");
-        });
-        
-        razorpayInstance.open();
-        
-        // Force Razorpay modal to have highest z-index and ensure it's clickable
-        const fixRazorpayZIndex = () => {
-          const razorpayIframe = document.querySelector('iframe[name="razorpay-checkout-frame"]') as HTMLIFrameElement;
-          if (razorpayIframe) {
-            razorpayIframe.style.zIndex = '999999';
-            razorpayIframe.style.pointerEvents = 'auto';
-            razorpayIframe.style.cursor = 'default';
-            
-            // Find and fix all parent containers
-            let parent: HTMLElement | null = razorpayIframe.parentElement;
-            let depth = 0;
-            while (parent && depth < 10) {
-              if (parent.style) {
-                parent.style.zIndex = '999999';
-                parent.style.pointerEvents = 'auto';
-                parent.style.cursor = 'default';
-              }
-              parent = parent.parentElement;
-              depth++;
-            }
-          } else {
-            // Retry if iframe not found yet
-            setTimeout(fixRazorpayZIndex, 50);
-          }
-        };
-        
-        // Fix z-index immediately and retry if needed
-        setTimeout(fixRazorpayZIndex, 50);
-        setTimeout(fixRazorpayZIndex, 200);
-        setTimeout(fixRazorpayZIndex, 500);
-      } catch (error) {
-        console.error(error);
-        const message = (error as { message?: string }).message ?? "Failed to initiate payment. Please try again.";
-        toast.error(message);
-        setIsSubmitting(false);
+      if (!orderResponse.success || !orderResponse.orderId) {
+        throw new Error("Failed to create payment order. Please try again.");
       }
+
+      // Step 2: Open Razorpay checkout
+      const options = {
+        key: orderResponse.keyId,
+        amount: orderResponse.amount,
+        currency: orderResponse.currency,
+        name: "Zion Car Rentals",
+        description: `Advance payment for ${car.name || 'car rental'}`,
+        order_id: orderResponse.orderId,
+        // Ensure Razorpay modal appears above everything
+        config: {
+          display: {
+            blocks: {
+              banks: {
+                name: "All payment methods",
+                instruments: [
+                  {
+                    method: "card",
+                  },
+                  {
+                    method: "netbanking",
+                  },
+                  {
+                    method: "wallet",
+                  },
+                  {
+                    method: "upi",
+                  },
+                ],
+              },
+            },
+            sequence: ["block.banks"],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
+        handler: async function (razorpayResponse: any) {
+          try {
+            // Step 3: Verify payment
+            const verificationResponse = await verifyRazorpayPayment(
+              razorpayResponse.razorpay_order_id,
+              razorpayResponse.razorpay_payment_id,
+              razorpayResponse.razorpay_signature,
+              car.id,
+              new Date(values.startTime).toISOString(),
+              values.duration,
+              advanceAmount,
+              token!
+            );
+
+            if (!verificationResponse.success || verificationResponse.paymentStatus !== 'completed') {
+              throw new Error("Payment verification failed. Please contact support.");
+            }
+
+            // Step 4: Create booking after successful payment verification
+            const bookingData = {
+              carId: car.id,
+              startTime: new Date(values.startTime).toISOString(),
+              duration: values.duration,
+              fullName: values.fullName,
+              guardianName: values.guardianName,
+              guardianRelation: values.guardianRelation,
+              residentialAddress: values.residentialAddress,
+              email: values.email,
+              mobile: values.mobile,
+              occupation: values.occupation,
+              drivingLicenseNumber: values.drivingLicenseNumber,
+              licenseExpiryDate: new Date(values.licenseExpiryDate).toISOString(),
+              depositType: values.depositType,
+              bikeDetails: values.depositType === "bike" && values.bikeDetails ? values.bikeDetails : null,
+              withDriver: isPremium || values.withDriver,
+              homeDelivery: false,
+              deliveryDistance: 0,
+              paymentId: verificationResponse.paymentId,
+              paymentStatus: verificationResponse.paymentStatus
+            };
+
+            const bookingResponse = await createBooking(bookingData, token!);
+            toast.success("Booking confirmed! Your advance payment has been processed and the car is now blocked for your selected time.");
+
+            // Extract booking ID from response if available
+            const bookingId = (bookingResponse as any)?.booking?._id || (bookingResponse as any)?.booking?.id || "";
+
+            if (onBookingSuccess && bookingId) {
+              onBookingSuccess(bookingId);
+            } else {
+              // Fallback to redirect if no callback provided
+              router.push("/bookings");
+            }
+          } catch (error) {
+            console.error("Payment verification/booking creation error:", error);
+            const message = (error as { message?: string }).message ?? "Failed to verify payment or create booking.";
+            toast.error(message);
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+        prefill: {
+          name: values.fullName,
+          email: values.email,
+          contact: values.mobile,
+        },
+        theme: {
+          color: "#f97316",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsSubmitting(false);
+            toast.error("Payment cancelled");
+          },
+          // Ensure modal is accessible
+          animation: true,
+        },
+      };
+
+      // Open Razorpay checkout
+      const razorpayWindow = (window as any).Razorpay;
+      if (!razorpayWindow) {
+        throw new Error("Razorpay SDK not loaded. Please refresh the page.");
+      }
+
+      const razorpayInstance = new razorpayWindow(options);
+
+      // Set high z-index for Razorpay modal after opening
+      razorpayInstance.on('payment.failed', function (response: any) {
+        console.error('Payment failed:', response);
+        setIsSubmitting(false);
+        toast.error("Payment failed. Please try again.");
+      });
+
+      razorpayInstance.open();
+
+      // Force Razorpay modal to have highest z-index and ensure it's clickable
+      const fixRazorpayZIndex = () => {
+        const razorpayIframe = document.querySelector('iframe[name="razorpay-checkout-frame"]') as HTMLIFrameElement;
+        if (razorpayIframe) {
+          razorpayIframe.style.zIndex = '999999';
+          razorpayIframe.style.pointerEvents = 'auto';
+          razorpayIframe.style.cursor = 'default';
+
+          // Find and fix all parent containers
+          let parent: HTMLElement | null = razorpayIframe.parentElement;
+          let depth = 0;
+          while (parent && depth < 10) {
+            if (parent.style) {
+              parent.style.zIndex = '999999';
+              parent.style.pointerEvents = 'auto';
+              parent.style.cursor = 'default';
+            }
+            parent = parent.parentElement;
+            depth++;
+          }
+        } else {
+          // Retry if iframe not found yet
+          setTimeout(fixRazorpayZIndex, 50);
+        }
+      };
+
+      // Fix z-index immediately and retry if needed
+      setTimeout(fixRazorpayZIndex, 50);
+      setTimeout(fixRazorpayZIndex, 200);
+      setTimeout(fixRazorpayZIndex, 500);
+    } catch (error) {
+      console.error(error);
+      const message = (error as { message?: string }).message ?? "Failed to initiate payment. Please try again.";
+      toast.error(message);
+      setIsSubmitting(false);
+    }
   };
 
   // Check availability when startTime or duration changes
   useEffect(() => {
     const startTime = form.watch("startTime");
     const duration = form.watch("duration");
-    
+
     // Debounce the check to avoid too many API calls
     const timeoutId = setTimeout(() => {
       if (startTime && duration) {
@@ -427,7 +431,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
   const checkAvailability = async () => {
     const startTime = form.getValues("startTime");
     const duration = form.getValues("duration");
-    
+
     if (!startTime || !duration) {
       return;
     }
@@ -448,7 +452,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
 
       const data = await response.json();
       setAvailabilityInfo(data);
-      
+
       if (!data.available) {
         toast.error(`Car is not available for the selected time. Next available: ${data.nextAvailableStartTime ? new Date(data.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
       }
@@ -519,7 +523,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   <FormField
                     control={form.control}
                     name="startTime"
-                    rules={{ 
+                    rules={{
                       required: "Start time is required",
                       validate: (value) => validateFutureDate(value) || "Start time must be in the future"
                     }}
@@ -540,11 +544,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="duration"
-                    rules={{ 
+                    rules={{
                       required: "Duration is required",
                       validate: (value) => value % 12 === 0 || "Duration must be in multiples of 12 hours"
                     }}
@@ -576,15 +580,15 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                             <SelectContent>
                               {DURATIONS.map((durationOption) => {
                                 // Disable duration options that exceed maxDurationHours if available
-                                const isDisabled = availabilityInfo !== null && 
-                                                  !availabilityInfo.available && 
-                                                  availabilityInfo.maxDurationHours !== null &&
-                                                  availabilityInfo.maxDurationHours !== undefined &&
-                                                  durationOption > availabilityInfo.maxDurationHours;
-                                
+                                const isDisabled = availabilityInfo !== null &&
+                                  !availabilityInfo.available &&
+                                  availabilityInfo.maxDurationHours !== null &&
+                                  availabilityInfo.maxDurationHours !== undefined &&
+                                  durationOption > availabilityInfo.maxDurationHours;
+
                                 return (
-                                  <SelectItem 
-                                    key={durationOption} 
+                                  <SelectItem
+                                    key={durationOption}
                                     value={String(durationOption)}
                                     disabled={!!isDisabled}
                                     className={isDisabled ? "opacity-50 cursor-not-allowed" : ""}
@@ -613,30 +617,47 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                 </div>
 
                 {car.driverAvailable && (
-                  <FormField
-                    control={form.control}
-                    name="withDriver"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <input
-                            type="checkbox"
-                            checked={field.value}
-                            onChange={field.onChange}
-                            className="h-4 w-4 rounded border-gray-300"
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel className="cursor-pointer">
-                            Include professional driver
-                          </FormLabel>
-                          <p className="text-sm text-muted-foreground">
-                            Driver charges (₹{car.driverChargesPerDay.toLocaleString()}/day) included in pricing
-                          </p>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
+                  car.type === "premium" ? (
+                    // Premium cars: Driver is mandatory/included
+                    <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+                      <CheckCircle className="h-6 w-6 text-primary" />
+                      <div>
+                        <p className="font-medium text-primary">Driver Included</p>
+                        <p className="text-sm text-muted-foreground">
+                          Premium cars come with a professional driver at no extra charge
+                        </p>
+                      </div>
+                      <Badge className="ml-auto bg-primary text-primary-foreground">
+                        Included
+                      </Badge>
+                    </div>
+                  ) : (
+                    // Normal cars: Driver is optional
+                    <FormField
+                      control={form.control}
+                      name="withDriver"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="cursor-pointer">
+                              Include professional driver
+                            </FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Driver charges (₹{car.driverChargesPerDay.toLocaleString()}/day) included in pricing
+                            </p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  )
                 )}
 
                 {/* Availability Status in Step 1 */}
@@ -648,7 +669,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                         <AlertDescription>Checking availability...</AlertDescription>
                       </Alert>
                     ) : availabilityInfo.available ? (
-                      <Alert 
+                      <Alert
                         className="border-2 shadow-lg"
                         style={{
                           backgroundColor: '#86efac',
@@ -662,7 +683,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <Alert 
+                      <Alert
                         className="border-2 shadow-lg"
                         style={{
                           backgroundColor: '#fca5a5',
@@ -705,7 +726,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   <FormField
                     control={form.control}
                     name="fullName"
-                    rules={{ 
+                    rules={{
                       required: "Full name is required",
                       validate: (value) => validateName(value) || "Name must be at least 2 characters and contain only letters"
                     }}
@@ -719,11 +740,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="guardianName"
-                    rules={{ 
+                    rules={{
                       required: "Guardian name is required",
                       validate: (value) => validateName(value) || "Guardian name must be at least 2 characters and contain only letters"
                     }}
@@ -737,7 +758,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="guardianRelation"
@@ -763,11 +784,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="mobile"
-                    rules={{ 
+                    rules={{
                       required: "Mobile number is required",
                       validate: (value) => validateMobile(value) || "Please enter a valid 10-digit mobile number"
                     }}
@@ -781,11 +802,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="email"
-                    rules={{ 
+                    rules={{
                       required: "Email is required",
                       validate: (value) => validateEmail(value) || "Please enter a valid email address"
                     }}
@@ -799,11 +820,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="occupation"
-                    rules={{ 
+                    rules={{
                       required: "Occupation is required",
                       minLength: { value: 2, message: "Occupation must be at least 2 characters" }
                     }}
@@ -818,11 +839,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     )}
                   />
                 </div>
-                
+
                 <FormField
                   control={form.control}
                   name="residentialAddress"
-                  rules={{ 
+                  rules={{
                     required: "Residential address is required",
                     minLength: { value: 10, message: "Address must be at least 10 characters" }
                   }}
@@ -830,10 +851,10 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     <FormItem>
                       <FormLabel>Residential Address</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          rows={3} 
-                          placeholder="Enter your complete residential address" 
-                          {...field} 
+                        <Textarea
+                          rows={3}
+                          placeholder="Enter your complete residential address"
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -858,7 +879,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                   <FormField
                     control={form.control}
                     name="drivingLicenseNumber"
-                    rules={{ 
+                    rules={{
                       required: "Driving license number is required",
                       validate: (value) => validateLicenseNumber(value) || "License number must be at least 5 characters and contain only uppercase letters and numbers"
                     }}
@@ -866,8 +887,8 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       <FormItem>
                         <FormLabel>Driving License Number</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Enter license number" 
+                          <Input
+                            placeholder="Enter license number"
                             {...field}
                             onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                           />
@@ -876,11 +897,11 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       </FormItem>
                     )}
                   />
-                  
+
                   <FormField
                     control={form.control}
                     name="licenseExpiryDate"
-                    rules={{ 
+                    rules={{
                       required: "License expiry date is required",
                       validate: (value) => validateFutureDate(value) || "License must not be expired"
                     }}
@@ -902,7 +923,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     )}
                   />
                 </div>
-                
+
                 <FormField
                   control={form.control}
                   name="depositType"
@@ -925,12 +946,12 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     </FormItem>
                   )}
                 />
-                
+
                 {depositType === "bike" && (
                   <FormField
                     control={form.control}
                     name="bikeDetails"
-                    rules={{ 
+                    rules={{
                       required: depositType === "bike" ? "Two wheeler details are required" : false,
                       minLength: { value: 5, message: "Two wheeler details must be at least 5 characters" }
                     }}
@@ -938,10 +959,10 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                       <FormItem>
                         <FormLabel>Two Wheeler Details</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            rows={3} 
-                            placeholder="Enter two wheeler registration number, model, and other details" 
-                            {...field} 
+                          <Textarea
+                            rows={3}
+                            placeholder="Enter two wheeler registration number, model, and other details"
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -949,7 +970,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     )}
                   />
                 )}
-                
+
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
@@ -975,7 +996,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     <p className="text-muted-foreground">Checking availability...</p>
                   </div>
                 ) : availabilityInfo && !availabilityInfo.available ? (
-                  <Alert 
+                  <Alert
                     className="border-2 shadow-lg my-4"
                     style={{
                       backgroundColor: '#fca5a5',
@@ -1041,8 +1062,8 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                           htmlFor="non-refundable-accept"
                           className="text-base sm:text-lg lg:text-xl leading-relaxed cursor-pointer flex-1 font-medium"
                         >
-                          I understand that the advance fee is non-refundable if my required documents 
-                          (Aadhaar card + valid driving license) are missing or expired during verification. 
+                          I understand that the advance fee is non-refundable if my required documents
+                          (Aadhaar card + valid driving license) are missing or expired during verification.
                           I have checked everything.
                         </label>
                       </div>
@@ -1085,15 +1106,15 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                           Need help? Contact us for any queries:
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-base sm:text-lg lg:text-xl">
-                          <a 
-                            href="tel:9100664083" 
+                          <a
+                            href="tel:9100664083"
                             className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline transition-colors"
                           >
                             <Phone className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
                             <span>9100664083</span>
                           </a>
-                          <a 
-                            href="mailto:Zioncarrentals90@gmail.com" 
+                          <a
+                            href="mailto:Zioncarrentals90@gmail.com"
                             className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline transition-colors"
                           >
                             <Mail className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
@@ -1114,8 +1135,8 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
               <Button
                 type="submit"
                 disabled={
-                  isSubmitting || 
-                  !nonRefundableAccepted || 
+                  isSubmitting ||
+                  !nonRefundableAccepted ||
                   !availabilityInfo?.available ||
                   checkingAvailability
                 }

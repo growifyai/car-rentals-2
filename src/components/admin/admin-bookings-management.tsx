@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
-  Search, 
-  Filter, 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
-  Play, 
+import {
+  Search,
+  Filter,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Play,
   Square,
   Calendar,
   User,
@@ -15,7 +15,10 @@ import {
   DollarSign,
   Clock,
   FileText,
-  Download
+  Download,
+  Plus,
+  Trash2,
+  Phone
 } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -29,8 +32,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { fetchAdminBookings, verifyBooking, startBooking, completeBooking } from "@/lib/admin";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { fetchAdminBookings, verifyBooking, startBooking, completeBooking, fetchAdminOfflineBookings, createAdminBooking, deleteAdminBooking, type AdminBookingData } from "@/lib/admin";
 import { apiFetch } from "@/lib/api-client";
+import { fetchCars } from "@/lib/cars";
+import type { CarCardData } from "@/types/cars";
 import { getApiBaseUrl } from "@/lib/env";
 import { toast } from "sonner";
 
@@ -135,13 +142,30 @@ export function AdminBookingsManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"verify" | "start" | "complete" | "view">("view");
 
+  // Admin bookings (offline walk-in customers) state
+  const [activeTab, setActiveTab] = useState("normal");
+  const [adminBookings, setAdminBookings] = useState<AdminBookingData[]>([]);
+  const [isLoadingAdminBookings, setIsLoadingAdminBookings] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [cars, setCars] = useState<CarCardData[]>([]);
+  const [newBooking, setNewBooking] = useState({
+    customerName: "",
+    customerMobile: "",
+    carId: "",
+    startTime: "",
+    endTime: "",
+    amount: "",
+    notes: ""
+  });
+  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+
   useEffect(() => {
     if (!token) return;
 
     const loadBookings = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const response = await apiFetch<{ bookings: BookingDetail[] }>("/api/bookings", { token });
         console.log("Admin bookings API response:", response);
@@ -161,6 +185,88 @@ export function AdminBookingsManagement() {
 
     loadBookings();
   }, [token]);
+
+  // Load admin bookings and cars when switching to admin tab
+  useEffect(() => {
+    if (!token || activeTab !== "admin") return;
+
+    const loadAdminData = async () => {
+      setIsLoadingAdminBookings(true);
+      try {
+        const adminBookingsData = await fetchAdminOfflineBookings(token);
+        setAdminBookings(adminBookingsData || []);
+      } catch (err: unknown) {
+        console.error("Failed to load admin bookings:", err);
+        setAdminBookings([]); // Reset to empty array on error
+        const errorMessage = err instanceof Error ? err.message : "Failed to load admin bookings";
+        toast.error(errorMessage);
+      } finally {
+        setIsLoadingAdminBookings(false);
+      }
+    };
+
+    loadAdminData();
+  }, [token, activeTab]);
+
+  // Load cars on initial mount (for the create modal)
+  useEffect(() => {
+    const loadCars = async () => {
+      try {
+        const carsData = await fetchCars();
+        setCars(carsData);
+      } catch (err) {
+        console.error("Failed to load cars:", err);
+      }
+    };
+    loadCars();
+  }, []);
+
+  const handleCreateAdminBooking = async () => {
+    if (!token) return;
+    if (!newBooking.customerName || !newBooking.customerMobile || !newBooking.carId || !newBooking.startTime || !newBooking.endTime) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsCreatingBooking(true);
+    try {
+      await createAdminBooking({
+        customerName: newBooking.customerName,
+        customerMobile: newBooking.customerMobile,
+        carId: newBooking.carId,
+        startTime: newBooking.startTime,
+        endTime: newBooking.endTime,
+        amount: newBooking.amount ? parseInt(newBooking.amount) : undefined,
+        notes: newBooking.notes || undefined
+      }, token);
+      toast.success("Booking created successfully");
+      setIsCreateModalOpen(false);
+      setNewBooking({ customerName: "", customerMobile: "", carId: "", startTime: "", endTime: "", amount: "", notes: "" });
+      // Reload admin bookings
+      const adminBookingsData = await fetchAdminOfflineBookings(token);
+      setAdminBookings(adminBookingsData);
+    } catch (err: unknown) {
+      console.error("Failed to create booking:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to create booking";
+      toast.error(errorMessage);
+    } finally {
+      setIsCreatingBooking(false);
+    }
+  };
+
+  const handleDeleteAdminBooking = async (bookingId: string) => {
+    if (!token) return;
+    if (!confirm("Are you sure you want to delete this booking? This will free up the time slot.")) return;
+
+    try {
+      await deleteAdminBooking(bookingId, token);
+      toast.success("Booking deleted successfully");
+      setAdminBookings(prev => prev.filter(b => b._id !== bookingId));
+    } catch (err: unknown) {
+      console.error("Failed to delete booking:", err);
+      toast.error("Failed to delete booking");
+    }
+  };
 
   useEffect(() => {
     let filtered = bookings;
@@ -279,160 +385,375 @@ export function AdminBookingsManagement() {
         </div>
       </div>
 
-      {/* Filters Section */}
-      <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
-          <CardTitle className="flex items-center space-x-2 text-slate-800 dark:text-slate-200">
-            <Filter className="h-5 w-5" />
-            <span>Filters & Search</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      {/* Tabs for Normal Bookings and Admin Bookings */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="normal" className="text-sm">
+            <Calendar className="h-4 w-4 mr-2" />
+            Normal Bookings ({filteredBookings.length})
+          </TabsTrigger>
+          <TabsTrigger value="admin" className="text-sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Admin Bookings ({adminBookings.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Normal Bookings Tab */}
+        <TabsContent value="normal" className="space-y-6">
+          {/* Filters Section */}
+          <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
+              <CardTitle className="flex items-center space-x-2 text-slate-800 dark:text-slate-200">
+                <Filter className="h-5 w-5" />
+                <span>Filters & Search</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      placeholder="Search by customer name, car, email, or phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 border-slate-300 dark:border-slate-600 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full md:w-48 border-slate-300 dark:border-slate-600">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10001]" style={{ zIndex: 10001 }}>
+                    {STATUS_FILTERS.map((filter) => (
+                      <SelectItem key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bookings Table */}
+          <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
+              <CardTitle className="text-slate-800 dark:text-slate-200">All Bookings</CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 py-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800">
+                    <TableRow className="border-slate-200 dark:border-slate-700">
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Customer</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Car</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Duration</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Start Time</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Total Price</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Status</TableHead>
+                      <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBookings.map((booking) => (
+                      <TableRow key={booking._id} className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <TableCell className="py-4">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerId.name}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 break-words">{booking.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900 dark:text-white">
+                              {getCarName(booking.carId)}
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              {getCarModel(booking.carId)}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">
+                            {booking.duration} hours
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-4 text-slate-600 dark:text-slate-400">
+                          {new Date(booking.startTime).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <span className="font-semibold text-green-600 dark:text-green-400">
+                            ₹{booking.totalPrice.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Badge className={getStatusColor(booking.status)}>
+                            {booking.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAction(booking, "view")}
+                              className="hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {booking.status === "advance_paid" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAction(booking, "verify")}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {booking.status === "verified" && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAction(booking, "start")}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {booking.status === "active" && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAction(booking, "complete")}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                <Square className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {filteredBookings.length === 0 && (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 mx-auto text-slate-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">No bookings found</h3>
+                  <p className="text-slate-500 dark:text-slate-500">
+                    {searchQuery || statusFilter !== "all"
+                      ? "No bookings match your current filters."
+                      : "No bookings have been created yet."
+                    }
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Admin Bookings Tab */}
+        <TabsContent value="admin" className="space-y-6">
+          {/* Header with Create Button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Offline Walk-in Bookings</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Create bookings for customers who book in person or by phone. These bookings block car availability.
+              </p>
+            </div>
+            <Button onClick={() => setIsCreateModalOpen(true)} className="bg-green-600 hover:bg-green-700 text-white">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Booking
+            </Button>
+          </div>
+
+          {/* Admin Bookings Table */}
+          <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
+            <CardContent className="px-6 py-0">
+              {isLoadingAdminBookings ? (
+                <div className="py-12 text-center">
+                  <p className="text-slate-500">Loading admin bookings...</p>
+                </div>
+              ) : adminBookings.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 mx-auto text-slate-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">No admin bookings</h3>
+                  <p className="text-slate-500 dark:text-slate-500">
+                    Click "Add Booking" to create a booking for a walk-in customer.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-800">
+                      <TableRow className="border-slate-200 dark:border-slate-700">
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Customer</TableHead>
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Car</TableHead>
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Start Time</TableHead>
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">End Time</TableHead>
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Amount</TableHead>
+                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminBookings.map((booking) => (
+                        <TableRow key={booking._id} className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <TableCell className="py-4">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerName}</p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center">
+                                <Phone className="h-3 w-3 mr-1" />
+                                {booking.customerMobile}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <p className="font-semibold text-slate-900 dark:text-white">
+                              {booking.carId?.carName || "Unknown Car"}
+                            </p>
+                          </TableCell>
+                          <TableCell className="py-4 text-slate-600 dark:text-slate-400">
+                            {new Date(booking.startTime).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="py-4 text-slate-600 dark:text-slate-400">
+                            {new Date(booking.endTime).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <span className="font-semibold text-green-600 dark:text-green-400">
+                              ₹{(booking.amount || 0).toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteAdminBooking(booking._id)}
+                              className="hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Create Admin Booking Modal - Using Dialog for proper centering */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="sm:max-w-lg p-0">
+          <DialogHeader className="p-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+            <DialogTitle>Add Offline Booking</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerName">Customer Name *</Label>
                 <Input
-                  placeholder="Search by customer name, car, email, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-slate-300 dark:border-slate-600 focus:border-blue-500 focus:ring-blue-500"
+                  id="customerName"
+                  value={newBooking.customerName}
+                  onChange={(e) => setNewBooking({ ...newBooking, customerName: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerMobile">Mobile Number *</Label>
+                <Input
+                  id="customerMobile"
+                  value={newBooking.customerMobile}
+                  onChange={(e) => setNewBooking({ ...newBooking, customerMobile: e.target.value })}
+                  placeholder="+91 12345 67890"
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48 border-slate-300 dark:border-slate-600">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent className="z-[10001]" style={{ zIndex: 10001 }}>
-                {STATUS_FILTERS.map((filter) => (
-                  <SelectItem key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Bookings Table */}
-      <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
-          <CardTitle className="text-slate-800 dark:text-slate-200">All Bookings</CardTitle>
-        </CardHeader>
-        <CardContent className="px-6 py-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50 dark:bg-slate-800">
-                <TableRow className="border-slate-200 dark:border-slate-700">
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Customer</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Car</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Duration</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Start Time</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Total Price</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Status</TableHead>
-                  <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBookings.map((booking) => (
-                  <TableRow key={booking._id} className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <TableCell className="py-4">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerId.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 break-words">{booking.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-slate-900 dark:text-white">
-                          {getCarName(booking.carId)}
-                        </p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {getCarModel(booking.carId)}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800">
-                        {booking.duration} hours
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-4 text-slate-600 dark:text-slate-400">
-                      {new Date(booking.startTime).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <span className="font-semibold text-green-600 dark:text-green-400">
-                        ₹{booking.totalPrice.toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <Badge className={getStatusColor(booking.status)}>
-                        {booking.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAction(booking, "view")}
-                          className="hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {booking.status === "advance_paid" && (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAction(booking, "verify")}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        {booking.status === "verified" && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleAction(booking, "start")}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <Play className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {booking.status === "active" && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleAction(booking, "complete")}
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
-                          >
-                            <Square className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          
-          {filteredBookings.length === 0 && (
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 mx-auto text-slate-400 mb-4" />
-              <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">No bookings found</h3>
-              <p className="text-slate-500 dark:text-slate-500">
-                {searchQuery || statusFilter !== "all" 
-                  ? "No bookings match your current filters." 
-                  : "No bookings have been created yet."
-                }
-              </p>
+            <div className="space-y-2">
+              <Label htmlFor="carId">Select Car *</Label>
+              <Select value={newBooking.carId} onValueChange={(value) => setNewBooking({ ...newBooking, carId: value })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose a car..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {cars.length === 0 ? (
+                    <SelectItem value="loading" disabled>Loading cars...</SelectItem>
+                  ) : (
+                    cars.map((car) => (
+                      <SelectItem key={car.id} value={car.id}>
+                        {car.name} {car.model && `(${car.model})`}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startTime">Start Time *</Label>
+                <div className="relative">
+                  <Input
+                    id="startTime"
+                    type="datetime-local"
+                    value={newBooking.startTime}
+                    onChange={(e) => setNewBooking({ ...newBooking, startTime: e.target.value })}
+                    className="w-full pr-10"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endTime">End Time *</Label>
+                <div className="relative">
+                  <Input
+                    id="endTime"
+                    type="datetime-local"
+                    value={newBooking.endTime}
+                    onChange={(e) => setNewBooking({ ...newBooking, endTime: e.target.value })}
+                    className="w-full pr-10"
+                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (Optional)</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={newBooking.amount}
+                onChange={(e) => setNewBooking({ ...newBooking, amount: e.target.value })}
+                placeholder="Enter amount paid/to be paid"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={newBooking.notes}
+                onChange={(e) => setNewBooking({ ...newBooking, notes: e.target.value })}
+                placeholder="Any additional notes..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter className="p-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateAdminBooking} disabled={isCreatingBooking} className="bg-green-600 hover:bg-green-700">
+              {isCreatingBooking ? "Creating..." : "Create Booking"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Action Modals */}
       <BookingActionModal
@@ -484,7 +805,7 @@ function BookingActionModal({
     setIsDownloading(true);
     try {
       const receiptUrl = `${getApiBaseUrl()}/api/bookings/${bookingId}/receipt`;
-      
+
       const response = await fetch(receiptUrl, {
         method: 'GET',
         headers: {
@@ -499,7 +820,7 @@ function BookingActionModal({
 
       // Get the PDF blob
       const blob = await response.blob();
-      
+
       // Create a download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -507,11 +828,11 @@ function BookingActionModal({
       link.download = `receipt-${bookingId}.pdf`;
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       toast.success("Receipt downloaded successfully");
     } catch (error: unknown) {
       console.error("Error downloading receipt:", error);
@@ -636,7 +957,7 @@ function BookingActionModal({
                 </CardContent>
               </Card>
             )}
-            
+
             {/* License Information */}
             <Card className="bg-slate-900 border-slate-700">
               <CardHeader className="pb-4">
@@ -690,15 +1011,15 @@ function BookingActionModal({
                     />
                   </div>
                   <div className="flex space-x-3 pt-2">
-                    <Button 
+                    <Button
                       onClick={() => onVerify("accept", undefined, adminNotes)}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Accept & Hand Over
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       onClick={() => onVerify("reject", adminNotes || "Documents missing or expired", adminNotes)}
                       className="flex-1"
                     >
@@ -719,7 +1040,7 @@ function BookingActionModal({
                   <CardTitle className="text-lg text-white">Start Rental</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Button 
+                  <Button
                     onClick={() => onStart(vehicleName, vehicleNumber, startOdometer)}
                     disabled={!vehicleName || !vehicleNumber}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -737,7 +1058,7 @@ function BookingActionModal({
                   <CardTitle className="text-lg text-white">Complete Rental</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Button 
+                  <Button
                     onClick={() => onComplete(endOdometer, actualReturnTime || undefined)}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                   >
@@ -819,7 +1140,7 @@ function BookingActionModal({
                 placeholder="Enter odometer reading"
               />
             </div>
-            <Button 
+            <Button
               onClick={() => onStart(vehicleName, vehicleNumber, startOdometer)}
               disabled={!vehicleName || !vehicleNumber}
             >
@@ -876,9 +1197,9 @@ function BookingActionModal({
   return (
     <>
       {/* Standalone dialog implementation */}
-      <div 
+      <div
         className="fixed inset-0 z-[9999] flex items-center justify-center"
-        style={{ 
+        style={{
           zIndex: 9999,
           position: 'fixed',
           top: 0,
@@ -891,16 +1212,16 @@ function BookingActionModal({
         }}
       >
         {/* Backdrop */}
-        <div 
+        <div
           className="absolute inset-0"
           onClick={onClose}
           style={{ pointerEvents: 'auto' }}
         />
-        
+
         {/* Dialog Content */}
-        <div 
+        <div
           className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl mx-4 flex flex-col overflow-hidden border border-slate-700/50"
-          style={{ 
+          style={{
             zIndex: 10000,
             pointerEvents: 'auto',
             position: 'relative',
@@ -912,16 +1233,16 @@ function BookingActionModal({
           {/* Header - Fixed */}
           <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700 shrink-0">
             <h2 className="text-xl font-semibold dark:text-white">{getModalTitle()}</h2>
-            <button 
+            <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-white text-xl font-bold"
             >
               ✕
             </button>
           </div>
-          
+
           {/* Scrollable Content */}
-          <div 
+          <div
             className="overflow-y-auto p-6 bg-black [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             style={{ flex: '1 1 auto', minHeight: 0 }}
           >
@@ -942,15 +1263,15 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
 
   const getFullFileUrl = (url?: string) => {
     if (!url) return null;
-    
+
     // If it's already a full URL, return it
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
-    
+
     // Normalize the URL by removing leading/trailing whitespace
     const normalizedUrl = url.trim();
-    
+
     // If it already contains 'uploads' (either /uploads/ or uploads/), 
     // just prepend the API base URL
     if (normalizedUrl.includes('uploads')) {
@@ -958,12 +1279,12 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
       const path = normalizedUrl.startsWith('/') ? normalizedUrl : `/${normalizedUrl}`;
       return `${getApiBaseUrl()}${path}`;
     }
-    
+
     // If it starts with /, it's already a path, just prepend API base URL
     if (normalizedUrl.startsWith('/')) {
       return `${getApiBaseUrl()}${normalizedUrl}`;
     }
-    
+
     // Otherwise, it's just a filename, add /uploads/
     return `${getApiBaseUrl()}/uploads/${normalizedUrl}`;
   };
@@ -983,7 +1304,7 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
   const handleView = () => {
     const fullUrl = getFullFileUrl(fileUrl);
     if (!fullUrl) return;
-    
+
     // Try to open in new tab
     window.open(fullUrl, '_blank', 'noopener,noreferrer');
   };
@@ -1008,30 +1329,30 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
 
       // Get the blob
       const blob = await response.blob();
-      
+
       // Create a blob URL and download
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      
+
       // Extract filename from URL or use provided fileName
       const urlParts = fullUrl.split('/');
       const urlFileName = urlParts[urlParts.length - 1];
       const fileExtension = urlFileName.split('.').pop() || 'file';
       link.download = `${fileName}-${Date.now()}.${fileExtension}`;
-      
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       // Clean up blob URL
       window.URL.revokeObjectURL(blobUrl);
-      
+
       toast.success('File downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Failed to download file. Trying direct download...');
-      
+
       // Fallback: try direct download
       const link = document.createElement('a');
       link.href = fullUrl;
@@ -1056,9 +1377,9 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
           <div className="space-y-3">
             {fileType === 'image' && !imageError ? (
               <div className="relative">
-                <img 
-                  src={fullFileUrl} 
-                  alt={title} 
+                <img
+                  src={fullFileUrl}
+                  alt={title}
                   className="w-full h-40 object-contain rounded border border-slate-600 bg-slate-900"
                   onLoad={() => setIsLoading(false)}
                   onError={() => {
@@ -1100,11 +1421,11 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
                 )}
               </div>
             )}
-            
+
             <div className="flex space-x-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="flex-1 border-slate-600 text-white hover:bg-slate-700"
                 onClick={handleView}
                 disabled={isLoading}
@@ -1112,8 +1433,8 @@ function DocumentViewer({ title, fileUrl, fileName }: { title: string; fileUrl?:
                 <Eye className="h-4 w-4 mr-1" />
                 View
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="flex-1 border-slate-600 text-white hover:bg-slate-700"
                 onClick={handleDownload}

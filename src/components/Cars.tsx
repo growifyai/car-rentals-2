@@ -6,6 +6,7 @@ import { Search, Filter, Car as CarIcon } from "lucide-react";
 import { motion } from "motion/react";
 
 import { CarCard } from "./CarCard";
+import { CarsBanner } from "./CarsBanner";
 import type { CarCardData } from "@/types/cars";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -51,7 +52,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
     <div className="min-h-screen py-16">
       <div className="container mx-auto px-4">
         {/* Header */}
-        <motion.div 
+        <motion.div
           className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -62,20 +63,29 @@ export function Cars({ cars, onBookNow }: CarsProps) {
             Premium <span className="text-primary">Luxury</span> Cars
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Choose from our extensive collection of luxury vehicles. All cars are available 
+            Choose from our extensive collection of luxury vehicles. All cars are available
             for 12-hour rental periods with premium service included.
           </p>
         </motion.div>
 
+        {/* Promotional Banner */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.15 }}
+        >
+          <CarsBanner />
+        </motion.div>
+
         {/* Hero Image */}
-        <motion.div 
+        <motion.div
           className="mb-12"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
           <div className="relative rounded-2xl overflow-hidden">
-            <img 
+            <img
               src="https://images.unsplash.com/photo-1647340764627-11713b9d0f65?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjYXIlMjBzaG93cm9vbSUyMGRlYWxlcnNoaXB8ZW58MXx8fHwxNzU5MDQ3NzAzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
               alt="Luxury car showroom"
               className="w-full h-64 lg:h-80 object-cover"
@@ -89,7 +99,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
         </motion.div>
 
         {/* Search and Filters */}
-        <motion.div 
+        <motion.div
           className="bg-card rounded-xl p-6 mb-8 border border-border"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -99,7 +109,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
             <Filter className="h-5 w-5 text-primary" />
             <h3 className="font-semibold">Search & Filter</h3>
           </div>
-          
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -110,7 +120,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
                 className="pl-10"
               />
             </div>
-            
+
             <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger>
                 <SelectValue placeholder="Car Type" />
@@ -143,7 +153,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
         </motion.div>
 
         {/* Results Count */}
-        <motion.div 
+        <motion.div
           className="flex items-center justify-between mb-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -176,7 +186,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
             ))}
           </div>
         ) : (
-          <motion.div 
+          <motion.div
             className="text-center py-16"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -194,7 +204,7 @@ export function Cars({ cars, onBookNow }: CarsProps) {
         )}
 
         {/* Additional Information */}
-        <motion.div 
+        <motion.div
           className="mt-16 grid md:grid-cols-3 gap-8"
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -203,21 +213,21 @@ export function Cars({ cars, onBookNow }: CarsProps) {
           <div className="text-center">
             <h4 className="font-semibold mb-2">12-Hour Flexibility</h4>
             <p className="text-sm text-muted-foreground">
-              All our cars are available for convenient 12-hour rental periods, 
+              All our cars are available for convenient 12-hour rental periods,
               perfect for day trips or special events.
             </p>
           </div>
           <div className="text-center">
             <h4 className="font-semibold mb-2">Premium Service</h4>
             <p className="text-sm text-muted-foreground">
-              Every rental includes comprehensive insurance, 24/7 support, 
+              Every rental includes comprehensive insurance, 24/7 support,
               and professional vehicle preparation.
             </p>
           </div>
           <div className="text-center">
             <h4 className="font-semibold mb-2">Instant Booking</h4>
             <p className="text-sm text-muted-foreground">
-              Book online instantly with our secure payment system 
+              Book online instantly with our secure payment system
               and get confirmation within minutes.
             </p>
           </div>

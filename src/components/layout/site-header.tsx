@@ -10,6 +10,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "./notification-bell";
 import { UpdatesIcon } from "./updates-icon";
+import { getApiBaseUrl } from "@/lib/env";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -22,14 +23,23 @@ export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const logoUrl = `${getApiBaseUrl()}/uploads/logo.png`;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="container mx-auto flex items-center justify-between px-4 py-4">
         <Link href="/" className="flex items-center space-x-3" onClick={() => setIsMenuOpen(false)}>
-          <div className="flex w-10 h-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary text-xl font-bold text-white">
-            Z
-          </div>
+          <img 
+            src={logoUrl} 
+            alt="Zion Car Rentals" 
+            className="w-10 h-10 rounded-lg object-contain"
+            onError={(e) => {
+              // Fallback to Z letter if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              target.parentElement?.insertAdjacentHTML('afterbegin', '<div class="flex w-10 h-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary text-xl font-bold text-white">Z</div>');
+            }}
+          />
           <div className="leading-tight">
             <span className="block text-lg font-semibold text-foreground">Zion Car Rentals</span>
             <span className="text-sm text-muted-foreground">Luxury Cars, Seamless Booking</span>

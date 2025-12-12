@@ -33,17 +33,17 @@ const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1503736334956-4c8f8
 export function CarDetail({ car, onBookNow }: CarDetailProps) {
   const [withDriver, setWithDriver] = useState(false);
   const pricePerPeriod = useMemo(() => car.pricing.price12hr, [car.pricing.price12hr]);
-  
+
   // Validate image URL - ensure it's a proper URL or use placeholder
   const isValidImageUrl = (url: string | undefined | null): boolean => {
     if (!url) return false;
     return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
   };
-  
+
   // Get all images: prefer images array, fall back to imageUrl, then placeholder
   const getAllImages = (): string[] => {
     const images: string[] = [];
-    
+
     // First, use images array if available
     if (car.images && Array.isArray(car.images) && car.images.length > 0) {
       car.images.forEach(img => {
@@ -52,22 +52,22 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
         }
       });
     }
-    
+
     // If no images from array, try imageUrl
     if (images.length === 0 && car.imageUrl && isValidImageUrl(car.imageUrl)) {
       images.push(car.imageUrl);
     }
-    
+
     // If still no images, use placeholder
     if (images.length === 0) {
       images.push(PLACEHOLDER_IMAGE);
     }
-    
+
     return images;
   };
-  
+
   const carImages = getAllImages();
-  
+
   const shouldUnoptimize = (url: string): boolean => {
     try {
       const urlObj = new URL(url);
@@ -79,7 +79,9 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
 
   const handleBookNow = () => {
     if (onBookNow) {
-      onBookNow(withDriver);
+      // Premium cars always include driver
+      const driverSelected = car.type === "premium" ? true : withDriver;
+      onBookNow(driverSelected);
     }
   };
 
@@ -135,7 +137,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
           <Card>
             <CardContent className="p-6 space-y-6">
               <h2 className="text-2xl font-semibold">Pricing</h2>
-              
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -146,7 +148,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
                     ₹{pricePerPeriod.toLocaleString()}
                   </p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <IndianRupee className="h-5 w-5 text-primary" />
@@ -178,7 +180,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-semibold">Vehicle Description</h2>
-                <Badge 
+                <Badge
                   variant={car.available ? "default" : "secondary"}
                   className="bg-primary/90 text-primary-foreground text-sm px-4 py-1.5"
                 >
@@ -209,7 +211,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
                     </div>
                   )}
                 </div>
-                
+
                 {(car.gearType || car.fuelType || car.seatingCapacity) && (
                   <>
                     <Separator />
@@ -244,7 +246,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
                     </div>
                   </>
                 )}
-                
+
                 {car.description && (
                   <>
                     <Separator />
@@ -266,25 +268,42 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
           <Card>
             <CardContent className="p-6 space-y-4">
               <h2 className="text-2xl font-semibold">Driver Option</h2>
-              <RadioGroup value={withDriver ? "with" : "without"} onValueChange={(value) => setWithDriver(value === "with")}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="without" id="without" />
-                  <Label htmlFor="without" className="flex items-center gap-2 cursor-pointer">
-                    <User className="h-5 w-5" />
-                    <span>Without Driver</span>
-                  </Label>
+              {car.type === "premium" ? (
+                // Premium cars: Driver is mandatory/included
+                <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <UserCheck className="h-6 w-6 text-primary" />
+                  <div>
+                    <p className="font-medium text-primary">Driver Included</p>
+                    <p className="text-sm text-muted-foreground">
+                      Premium cars come with a professional driver at no extra charge
+                    </p>
+                  </div>
+                  <Badge variant="default" className="ml-auto bg-primary">
+                    Included
+                  </Badge>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="with" id="with" />
-                  <Label htmlFor="with" className="flex items-center gap-2 cursor-pointer">
-                    <UserCheck className="h-5 w-5" />
-                    <span>With Driver</span>
-                    <Badge variant="outline" className="ml-2">
-                      +₹{car.driverChargesPerDay.toLocaleString()}/day
-                    </Badge>
-                  </Label>
-                </div>
-              </RadioGroup>
+              ) : (
+                // Normal cars: Driver is optional
+                <RadioGroup value={withDriver ? "with" : "without"} onValueChange={(value) => setWithDriver(value === "with")}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="without" id="without" />
+                    <Label htmlFor="without" className="flex items-center gap-2 cursor-pointer">
+                      <User className="h-5 w-5" />
+                      <span>Without Driver</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="with" id="with" />
+                    <Label htmlFor="with" className="flex items-center gap-2 cursor-pointer">
+                      <UserCheck className="h-5 w-5" />
+                      <span>With Driver</span>
+                      <Badge variant="outline" className="ml-2">
+                        +₹{car.driverChargesPerDay.toLocaleString()}/day
+                      </Badge>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              )}
             </CardContent>
           </Card>
         )}
@@ -292,10 +311,10 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
         {/* Book Now Button */}
         <Card>
           <CardContent className="p-6">
-            <Button 
-              className="w-full" 
-              size="lg" 
-              onClick={handleBookNow} 
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleBookNow}
               disabled={!car.available || !onBookNow}
             >
               {car.available ? "Book Now" : "Currently Unavailable"}

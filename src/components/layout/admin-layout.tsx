@@ -3,11 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  BarChart3, 
-  Calendar, 
-  Car, 
-  LogOut, 
+import {
+  BarChart3,
+  Calendar,
+  Car,
+  LogOut,
   X,
   Home,
   Settings,
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { getApiBaseUrl } from "@/lib/env";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -34,12 +35,14 @@ const navigationItems = [
   { href: "/admin/cars", label: "Cars Management", icon: Car, description: "Fleet Management" },
   { href: "/admin/updates", label: "Updates", icon: Bell, description: "Site Announcements" },
   { href: "/admin/homepage", label: "Homepage", icon: Video, description: "Hero Video & Banners" },
+  { href: "/admin/carspage", label: "Cars Page", icon: ImageIcon, description: "Cars Page Banner" },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const logoUrl = `${getApiBaseUrl()}/uploads/logo.png`;
 
   const handleLogout = () => {
     logout();
@@ -49,7 +52,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -64,9 +67,16 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           {/* Header */}
           <div className="flex items-center justify-start p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-600 to-purple-600">
             <Link href="/admin/dashboard" className="flex items-center space-x-3">
-              <div className="flex w-10 h-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-xl font-bold text-white shadow-lg">
-                Z
-              </div>
+              <img
+                src={logoUrl}
+                alt="Zion Admin"
+                className="w-10 h-10 rounded-full object-contain bg-white/20 backdrop-blur-sm shadow-lg"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.parentElement?.insertAdjacentHTML('afterbegin', '<div class="flex w-10 h-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-xl font-bold text-white shadow-lg">Z</div>');
+                }}
+              />
               <div className="leading-tight">
                 <span className="block text-xl font-bold text-white">Zion Admin</span>
                 <span className="text-sm text-white/80">Management Portal</span>
@@ -79,15 +89,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
-              
+
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={`
                     flex items-center space-x-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 group
-                    ${isActive 
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25' 
+                    ${isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg shadow-blue-500/25'
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
                     }
                   `}
@@ -119,7 +129,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
               </div>
             </div>
-            
+
             {/* Logout button at the very end */}
             <div className="p-4 pt-0">
               <Button
@@ -150,7 +160,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-3">
             <Link href="/">
               <Button variant="outline" size="sm">

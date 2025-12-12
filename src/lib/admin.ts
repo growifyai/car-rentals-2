@@ -38,7 +38,7 @@ const statusLabels: Record<string, string> = {
 function mapAdminBooking(apiBooking: ApiBookingSummary): BookingSummary {
   const summary = mapApiCarToCard(apiBooking.carId);
   const depositAmount = calculateDeposit(apiBooking.carId.type);
-  
+
   // Calculate fallback price based on duration using the pricing structure
   let fallbackPrice = summary.pricing.price12hr;
   if (apiBooking.duration >= 72) {
@@ -50,7 +50,7 @@ function mapAdminBooking(apiBooking: ApiBookingSummary): BookingSummary {
   } else if (apiBooking.duration >= 24) {
     fallbackPrice = summary.pricing.price24hr;
   }
-  
+
   const totalPrice = apiBooking.totalPrice ?? fallbackPrice;
 
   return {
@@ -129,6 +129,69 @@ export async function completeBooking(
   return apiFetch<{ message: string }>(`/api/bookings/${bookingId}/complete`, {
     method: "PUT",
     json: payload,
+    token,
+  });
+}
+
+// Admin Booking types for offline walk-in customers
+export interface AdminBookingData {
+  _id: string;
+  customerName: string;
+  customerMobile: string;
+  carId: {
+    _id: string;
+    carName: string;
+    model?: string;
+    brand?: string;
+    type?: string;
+    imageUrl?: string;
+  };
+  startTime: string;
+  endTime: string;
+  amount?: number;
+  notes?: string;
+  createdBy?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  createdAt: string;
+}
+
+interface AdminOfflineBookingsResponse {
+  bookings: AdminBookingData[];
+}
+
+// Fetch all admin bookings (offline walk-in customers)
+export async function fetchAdminOfflineBookings(token: string): Promise<AdminBookingData[]> {
+  const data = await apiFetch<AdminOfflineBookingsResponse>("/api/admin/bookings/offline", { token });
+  return data.bookings || [];
+}
+
+// Create admin booking
+export async function createAdminBooking(
+  payload: {
+    customerName: string;
+    customerMobile: string;
+    carId: string;
+    startTime: string;
+    endTime: string;
+    amount?: number;
+    notes?: string;
+  },
+  token: string,
+): Promise<{ message: string; booking: AdminBookingData }> {
+  return apiFetch<{ message: string; booking: AdminBookingData }>("/api/admin/bookings", {
+    method: "POST",
+    json: payload,
+    token,
+  });
+}
+
+// Delete admin booking
+export async function deleteAdminBooking(bookingId: string, token: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/api/admin/bookings/offline/${bookingId}`, {
+    method: "DELETE",
     token,
   });
 }

@@ -63,3 +63,38 @@ export async function updateOfferBanner(
   });
 }
 
+// Cars Banner types and functions
+export interface CarsBanner {
+  _id?: string;
+  imageUrl: string;
+  title?: string;
+  description?: string;
+  linkUrl?: string;
+  active?: boolean;
+}
+
+export async function getCarsBanner(): Promise<{ banner: CarsBanner | null }> {
+  return apiFetch<{ banner: CarsBanner | null }>("/api/cars-banner");
+}
+
+export async function getAdminCarsBanner(token: string): Promise<{ banner: CarsBanner | null }> {
+  return apiFetch<{ banner: CarsBanner | null }>("/api/admin/cars-banner", { token });
+}
+
+export async function updateCarsBanner(
+  payload: {
+    imageUrl: string;
+    title?: string;
+    description?: string;
+    linkUrl?: string;
+    active?: boolean;
+  },
+  token: string
+): Promise<{ message: string; banner: CarsBanner }> {
+  return apiFetch<{ message: string; banner: CarsBanner }>("/api/admin/cars-banner", {
+    method: "PUT",
+    json: payload,
+    token,
+  });
+}
+

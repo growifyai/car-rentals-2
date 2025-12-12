@@ -68,35 +68,8 @@ export function Cars({ cars, onBookNow }: CarsProps) {
           </p>
         </motion.div>
 
-        {/* Promotional Banner */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.15 }}
-        >
-          <CarsBanner />
-        </motion.div>
-
-        {/* Hero Image */}
-        <motion.div
-          className="mb-12"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
-          <div className="relative rounded-2xl overflow-hidden">
-            <img
-              src="https://images.unsplash.com/photo-1647340764627-11713b9d0f65?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjYXIlMjBzaG93cm9vbSUyMGRlYWxlcnNoaXB8ZW58MXx8fHwxNzU5MDQ3NzAzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-              alt="Luxury car showroom"
-              className="w-full h-64 lg:h-80 object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
-            <div className="absolute bottom-6 left-6 text-white">
-              <h3 className="text-2xl font-bold mb-2">Premium Collection</h3>
-              <p className="text-sm opacity-90">Handpicked luxury vehicles for every occasion</p>
-            </div>
-          </div>
-        </motion.div>
+        {/* Hero Image - Uses admin-editable background */}
+        <CarsBanner />
 
         {/* Search and Filters */}
         <motion.div

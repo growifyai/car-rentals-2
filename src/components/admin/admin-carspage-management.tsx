@@ -96,7 +96,7 @@ export function AdminCarspageManagement() {
             <div>
                 <h1 className="text-3xl font-bold text-foreground">Cars Page Management</h1>
                 <p className="text-muted-foreground">
-                    Manage the promotional banner displayed on the cars page.
+                    Manage the hero section displayed at the top of the cars page.
                 </p>
             </div>
 
@@ -105,10 +105,10 @@ export function AdminCarspageManagement() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <ImageIcon className="size-5" />
-                        Cars Page Banner
+                        Hero Section Background
                     </CardTitle>
                     <CardDescription>
-                        Upload a promotional banner image that will be displayed at the top of the cars page. This should be a high-quality image (poster/promotional style).
+                        Change the background image and text for the main hero banner on the cars page. This is the large banner shown below the page title.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

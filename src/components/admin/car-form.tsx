@@ -969,14 +969,17 @@ export function CarForm({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="blockNotes">Reason/Notes</Label>
+                <Label htmlFor="blockNotes">Reason/Notes (Optional)</Label>
                 <Textarea
                   id="blockNotes"
                   value={blockForm.notes}
                   onChange={(e) => setBlockForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="e.g., Scheduled maintenance, Service, Repair, etc."
+                  placeholder="e.g., Scheduled maintenance, Service, Repair, etc. (optional)"
                   rows={2}
                 />
+                <p className="text-xs text-muted-foreground">
+                  You can leave this blank if you don't want to specify a reason
+                </p>
               </div>
 
               <Button 

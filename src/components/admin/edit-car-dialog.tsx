@@ -170,6 +170,7 @@ export function EditCarDialog({ car, onCarUpdated }: EditCarDialogProps) {
                 onCancel={handleCancel}
                 isLoading={isLoading}
                 submitLabel="Update Car"
+                carId={car._id}
               />
             </div>
           </div>

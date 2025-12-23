@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, ArrowUp, ArrowDown, Ban, X, Calendar, Clock, Edit2 } from "lucide-react";
+import { apiFetch } from "@/lib/api-client";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export interface CarFormData {
   carName: string;
@@ -39,12 +41,25 @@ export interface CarFormData {
   available: boolean;
 }
 
+interface AdminBlock {
+  _id: string;
+  customerName: string;
+  customerMobile: string;
+  carId: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+  amount?: number;
+  createdAt: string;
+}
+
 interface CarFormProps {
   initialData?: Partial<CarFormData>;
   onSubmit: (data: CarFormData) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
   submitLabel?: string;
+  carId?: string; // Optional: for editing existing car to fetch/manage blocks
 }
 
 export function CarForm({ 
@@ -52,8 +67,11 @@ export function CarForm({
   onSubmit, 
   onCancel, 
   isLoading = false,
-  submitLabel = "Save Car"
+  submitLabel = "Save Car",
+  carId
 }: CarFormProps) {
+  const { token } = useAuth();
+  
   const [formData, setFormData] = useState<CarFormData>({
     carName: "",
     model: "",
@@ -87,6 +105,193 @@ export function CarForm({
   const [featuresInput, setFeaturesInput] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Blocking feature state
+  const [blocks, setBlocks] = useState<AdminBlock[]>([]);
+  const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
+  const [blockForm, setBlockForm] = useState({
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+    notes: ""
+  });
+  const [isCreatingBlock, setIsCreatingBlock] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+
+  // Fetch existing blocks when editing a car
+  useEffect(() => {
+    if (carId && token) {
+      fetchBlocks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carId, token]);
+
+  const fetchBlocks = async () => {
+    if (!carId) return;
+    
+    setIsLoadingBlocks(true);
+    try {
+      // Fetch admin bookings for this car
+      const response = await apiFetch(`/api/admin/bookings?carId=${carId}`, {
+        token,
+      }) as AdminBlock[];
+      
+      // Filter only blocks (those with customerName as "BLOCKED")
+      const blockings = response.filter((b) => 
+        b.customerName === "BLOCKED" || b.customerName === "BLOCK"
+      );
+      
+      setBlocks(blockings);
+    } catch (error) {
+      console.error("Failed to fetch blocks:", error);
+    } finally {
+      setIsLoadingBlocks(false);
+    }
+  };
+
+  const createOrUpdateBlock = async () => {
+    if (!carId) {
+      alert("Please save the car first before adding blocks");
+      return;
+    }
+
+    // Validate block form
+    if (!blockForm.startDate || !blockForm.startTime || !blockForm.endDate || !blockForm.endTime) {
+      alert("Please fill in all date and time fields");
+      return;
+    }
+
+    // Combine date and time
+    const startDateTime = new Date(`${blockForm.startDate}T${blockForm.startTime}`);
+    const endDateTime = new Date(`${blockForm.endDate}T${blockForm.endTime}`);
+
+    if (endDateTime <= startDateTime) {
+      alert("End date/time must be after start date/time");
+      return;
+    }
+
+    setIsCreatingBlock(true);
+    try {
+      if (editingBlockId) {
+        // Update existing block
+        await apiFetch(`/api/admin/bookings/${editingBlockId}`, {
+          method: "PUT",
+          token,
+          json: {
+            customerName: "BLOCKED",
+            customerMobile: "0000000000",
+            carId,
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            amount: 0,
+            notes: blockForm.notes || "Car blocked by admin"
+          }
+        });
+      } else {
+        // Create new block
+        await apiFetch("/api/admin/bookings", {
+          method: "POST",
+          token,
+          json: {
+            customerName: "BLOCKED",
+            customerMobile: "0000000000",
+            carId,
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            amount: 0,
+            notes: blockForm.notes || "Car blocked by admin"
+          }
+        });
+      }
+
+      // Reset form
+      setBlockForm({
+        startDate: "",
+        startTime: "",
+        endDate: "",
+        endTime: "",
+        notes: ""
+      });
+      setEditingBlockId(null);
+
+      // Refresh blocks
+      await fetchBlocks();
+    } catch (error: any) {
+      console.error("Failed to save block:", error);
+      alert(error.message || "Failed to save block. The car might be already booked for this time.");
+    } finally {
+      setIsCreatingBlock(false);
+    }
+  };
+
+  const editBlock = (block: AdminBlock) => {
+    // Parse the ISO date strings
+    const startDate = new Date(block.startTime);
+    const endDate = new Date(block.endTime);
+
+    // Format dates for input fields (YYYY-MM-DD)
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    // Format time for input fields (HH:MM)
+    const formatTime = (date: Date) => {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
+    setBlockForm({
+      startDate: formatDate(startDate),
+      startTime: formatTime(startDate),
+      endDate: formatDate(endDate),
+      endTime: formatTime(endDate),
+      notes: block.notes || ""
+    });
+    setEditingBlockId(block._id);
+
+    // Scroll to form
+    document.getElementById('blockStartDate')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const cancelEdit = () => {
+    setBlockForm({
+      startDate: "",
+      startTime: "",
+      endDate: "",
+      endTime: "",
+      notes: ""
+    });
+    setEditingBlockId(null);
+  };
+
+  const deleteBlock = async (blockId: string) => {
+    if (!confirm("Are you sure you want to remove this block?")) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/admin/bookings/${blockId}`, {
+        method: "DELETE",
+        token
+      });
+
+      // If deleting the block being edited, cancel edit mode
+      if (editingBlockId === blockId) {
+        cancelEdit();
+      }
+
+      // Refresh blocks
+      await fetchBlocks();
+    } catch (error) {
+      console.error("Failed to delete block:", error);
+      alert("Failed to delete block");
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -656,6 +861,222 @@ export function CarForm({
           </div>
         </CardContent>
       </Card>
+
+      {/* Car Blocking Section - Only shown when editing existing car */}
+      {carId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5" />
+              Block Car (Service/Maintenance)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Block the car for specific time periods (e.g., for service, maintenance, or other reasons). 
+              The car will not be available for booking during blocked periods.
+            </p>
+
+            {/* Create New Block */}
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">
+                  {editingBlockId ? "Edit Block" : "Create New Block"}
+                </h3>
+                {editingBlockId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={cancelEdit}
+                    className="text-muted-foreground"
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="blockStartDate">Start Date *</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                    <Input
+                      id="blockStartDate"
+                      type="date"
+                      value={blockForm.startDate}
+                      onChange={(e) => setBlockForm(prev => ({ ...prev, startDate: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="pl-10 cursor-pointer hide-native-picker"
+                      style={{
+                        colorScheme: 'dark'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="blockStartTime">Start Time *</Label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none z-10" />
+                    <Input
+                      id="blockStartTime"
+                      type="time"
+                      value={blockForm.startTime}
+                      onChange={(e) => setBlockForm(prev => ({ ...prev, startTime: e.target.value }))}
+                      className="pl-10 cursor-pointer hide-native-picker"
+                      style={{
+                        colorScheme: 'dark'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="blockEndDate">End Date *</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                    <Input
+                      id="blockEndDate"
+                      type="date"
+                      value={blockForm.endDate}
+                      onChange={(e) => setBlockForm(prev => ({ ...prev, endDate: e.target.value }))}
+                      min={blockForm.startDate || new Date().toISOString().split('T')[0]}
+                      className="pl-10 cursor-pointer hide-native-picker"
+                      style={{
+                        colorScheme: 'dark'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="blockEndTime">End Time *</Label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none z-10" />
+                    <Input
+                      id="blockEndTime"
+                      type="time"
+                      value={blockForm.endTime}
+                      onChange={(e) => setBlockForm(prev => ({ ...prev, endTime: e.target.value }))}
+                      className="pl-10 cursor-pointer hide-native-picker"
+                      style={{
+                        colorScheme: 'dark'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="blockNotes">Reason/Notes</Label>
+                <Textarea
+                  id="blockNotes"
+                  value={blockForm.notes}
+                  onChange={(e) => setBlockForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="e.g., Scheduled maintenance, Service, Repair, etc."
+                  rows={2}
+                />
+              </div>
+
+              <Button 
+                type="button" 
+                onClick={createOrUpdateBlock}
+                disabled={isCreatingBlock || !blockForm.startDate || !blockForm.startTime || !blockForm.endDate || !blockForm.endTime}
+                className="w-full"
+              >
+                {isCreatingBlock 
+                  ? (editingBlockId ? "Updating Block..." : "Creating Block...") 
+                  : (editingBlockId ? "Update Block" : "Create Block")
+                }
+              </Button>
+            </div>
+
+            {/* Existing Blocks List */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">
+                Existing Blocks ({blocks.length})
+              </h3>
+
+              {isLoadingBlocks ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  Loading blocks...
+                </div>
+              ) : blocks.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground border rounded-lg">
+                  No blocks created yet
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {blocks.map((block) => (
+                    <div
+                      key={block._id}
+                      className={`flex items-start justify-between p-4 border rounded-lg ${
+                        editingBlockId === block._id
+                          ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900'
+                          : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
+                      }`}
+                    >
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Ban className={`h-4 w-4 ${
+                            editingBlockId === block._id
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`} />
+                          <span className={`font-semibold text-sm ${
+                            editingBlockId === block._id
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {editingBlockId === block._id ? 'EDITING' : 'BLOCKED'}
+                          </span>
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">From:</span>{" "}
+                          {new Date(block.startTime).toLocaleString()}
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">To:</span>{" "}
+                          {new Date(block.endTime).toLocaleString()}
+                        </div>
+                        {block.notes && (
+                          <div className="text-sm text-muted-foreground mt-2">
+                            <span className="font-medium">Reason:</span> {block.notes}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                          onClick={() => editBlock(block)}
+                          title="Edit block"
+                          disabled={editingBlockId === block._id}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
+                          onClick={() => deleteBlock(block._id)}
+                          title="Remove block"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-4 pt-4 border-t">

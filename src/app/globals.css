@@ -147,6 +147,49 @@ input[type="date"]::-moz-calendar-picker-indicator:hover {
   opacity: 1 !important;
 }
 
+/* Hide native calendar/time picker indicators for admin blocking inputs */
+input[type="date"].hide-native-picker::-webkit-calendar-picker-indicator,
+input[type="time"].hide-native-picker::-webkit-calendar-picker-indicator {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  filter: none !important;
+}
+
+input[type="date"].hide-native-picker::-webkit-inner-spin-button,
+input[type="time"].hide-native-picker::-webkit-inner-spin-button {
+  display: none !important;
+}
+
+input[type="date"].hide-native-picker::-webkit-clear-button,
+input[type="time"].hide-native-picker::-webkit-clear-button {
+  display: none !important;
+}
+
+/* For Firefox */
+input[type="date"].hide-native-picker::-moz-calendar-picker-indicator,
+input[type="time"].hide-native-picker::-moz-calendar-picker-indicator {
+  opacity: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Override padding for inputs with hidden picker */
+input[type="date"].hide-native-picker,
+input[type="time"].hide-native-picker {
+  padding-right: 0.75rem !important;
+}
+
 /* Select Dropdown Fix - Ensure dropdowns appear above dialogs */
 [data-slot="select-content"] {
   z-index: 100000 !important;

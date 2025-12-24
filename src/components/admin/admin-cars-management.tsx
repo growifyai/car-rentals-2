@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { 
   Car, 
-  DollarSign, 
+  IndianRupee, 
   Image as ImageIcon,
   Trash2,
   Settings,
@@ -193,7 +193,7 @@ export function AdminCarsManagement() {
               {/* Pricing Section */}
               <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
                 <div className="flex items-center space-x-2 mb-4">
-                  <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <IndianRupee className="h-5 w-5 text-green-600 dark:text-green-400" />
                   <h4 className="text-base font-semibold text-slate-900 dark:text-white">Pricing</h4>
                 </div>
                 <div className="space-y-2">

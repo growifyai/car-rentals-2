@@ -320,7 +320,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
               {car.available ? "Book Now" : "Currently Unavailable"}
             </Button>
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Need assistance? Contact us at support@zionrentals.com
+              Need assistance? Contact us at Zioncarrentals90@gmail.com
             </p>
           </CardContent>
         </Card>

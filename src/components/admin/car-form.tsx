@@ -906,7 +906,6 @@ export function CarForm({
                       type="date"
                       value={blockForm.startDate}
                       onChange={(e) => setBlockForm(prev => ({ ...prev, startDate: e.target.value }))}
-                      min={new Date().toISOString().split('T')[0]}
                       className="pl-10 cursor-pointer hide-native-picker"
                       style={{
                         colorScheme: 'dark'

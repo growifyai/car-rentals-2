@@ -68,7 +68,7 @@ export function CarCard({
               variant={car.available ? "default" : "secondary"}
               className="bg-primary/90 text-primary-foreground"
             >
-              {car.available ? "Available" : "Unavailable"}
+              {car.available ? "Check for availability" : "Currently unavailable"}
             </Badge>
           </div>
           <div className="absolute top-4 right-4">

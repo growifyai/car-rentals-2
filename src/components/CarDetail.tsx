@@ -184,7 +184,7 @@ export function CarDetail({ car, onBookNow }: CarDetailProps) {
                   variant={car.available ? "default" : "secondary"}
                   className="bg-primary/90 text-primary-foreground text-sm px-4 py-1.5"
                 >
-                  {car.available ? "Available" : "Unavailable"}
+                  {car.available ? "Check for availability" : "Currently unavailable"}
                 </Badge>
               </div>
               <div className="space-y-4">

@@ -195,11 +195,13 @@ export function CarForm({
           token,
           json: {
             customerName: "BLOCKED",
-            customerMobile: "0000000000",
+            mobile: "0000000000",
             carId,
             startTime: startDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
-            amount: 0,
+            totalAmount: 0,
+            advancedAmount: 0,
+            discount: 0,
             notes: blockForm.notes || "Car blocked by admin"
           }
         });
@@ -1036,11 +1038,11 @@ export function CarForm({
                         </div>
                         <div className="text-sm">
                           <span className="font-medium">From:</span>{" "}
-                          {new Date(block.startTime).toLocaleString()}
+                          {new Date(block.startTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         <div className="text-sm">
                           <span className="font-medium">To:</span>{" "}
-                          {new Date(block.endTime).toLocaleString()}
+                          {new Date(block.endTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                         {block.notes && (
                           <div className="text-sm text-muted-foreground mt-2">

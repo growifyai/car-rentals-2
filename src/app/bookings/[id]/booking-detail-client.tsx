@@ -160,11 +160,11 @@ export function BookingDetailClient({ bookingId }: BookingDetailClientProps) {
           <div className="space-y-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Start Time</p>
-              <p className="font-medium">{new Date(booking.startTime).toLocaleString()}</p>
+              <p className="font-medium">{new Date(booking.startTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">End Time</p>
-              <p className="font-medium">{new Date(booking.endTime).toLocaleString()}</p>
+              <p className="font-medium">{new Date(booking.endTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">Duration</p>

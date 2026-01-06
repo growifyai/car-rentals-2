@@ -154,11 +154,10 @@ export function UpdatesClient() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(update.createdAt).toLocaleDateString("en-US", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
+                          {new Date(update.createdAt).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric"
                           })}
                         </p>
                       </div>

@@ -79,7 +79,8 @@ export function AddCarDialog({ onCarAdded }: AddCarDialogProps) {
               position: 'relative',
               maxHeight: '95vh',
               height: '95vh',
-              width: '60%'
+              width: '90%',
+              maxWidth: '60rem'
             }}
           >
             {/* Header - Fixed */}

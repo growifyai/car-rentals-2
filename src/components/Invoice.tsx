@@ -105,7 +105,7 @@ export function Invoice({ orderData, onBackToHome }: InvoiceProps) {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Order Date:</span>
-                    <span>{new Date(orderData.orderDate).toLocaleDateString()}</span>
+                    <span>{new Date(orderData.orderDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Payment Method:</span>
@@ -127,7 +127,8 @@ export function Invoice({ orderData, onBackToHome }: InvoiceProps) {
             {/* Items Table */}
             <div className="mb-6">
               <h3 className="font-semibold mb-4">Rental Details:</h3>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
@@ -160,6 +161,7 @@ export function Invoice({ orderData, onBackToHome }: InvoiceProps) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
 

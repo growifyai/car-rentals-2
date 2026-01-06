@@ -136,8 +136,16 @@ export async function completeBooking(
 // Admin Booking types for offline walk-in customers
 export interface AdminBookingData {
   _id: string;
+  customerId?: string;
   customerName: string;
-  customerMobile: string;
+  guardianName?: string;
+  guardianRelation?: string;
+  mobile: string;
+  email?: string;
+  occupation?: string;
+  residentialAddress?: string;
+  drivingLicenseNumber?: string;
+  licenseExpiryDate?: string;
   carId: {
     _id: string;
     carName: string;
@@ -148,7 +156,15 @@ export interface AdminBookingData {
   };
   startTime: string;
   endTime: string;
-  amount?: number;
+  totalAmount: number;
+  advancedAmount?: number;
+  discount?: number;
+  additionalFee1Name?: string;
+  additionalFee1Amount?: number;
+  additionalFee2Name?: string;
+  additionalFee2Amount?: number;
+  additionalFee3Name?: string;
+  additionalFee3Amount?: number;
   notes?: string;
   createdBy?: {
     _id: string;
@@ -171,13 +187,29 @@ export async function fetchAdminOfflineBookings(token: string): Promise<AdminBoo
 // Create admin booking
 export async function createAdminBooking(
   payload: {
+    customerId: string;
     customerName: string;
-    customerMobile: string;
+    guardianName: string;
+    guardianRelation: string;
+    mobile: string;
+    email: string;
+    occupation: string;
+    residentialAddress: string;
+    drivingLicenseNumber: string;
+    licenseExpiryDate: string;
     carId: string;
     startTime: string;
     endTime: string;
-    amount?: number;
+    totalAmount: number;
+    advancedAmount?: number;
+    discount?: number;
     notes?: string;
+    additionalFee1Name?: string;
+    additionalFee1Amount?: number;
+    additionalFee2Name?: string;
+    additionalFee2Amount?: number;
+    additionalFee3Name?: string;
+    additionalFee3Amount?: number;
   },
   token: string,
 ): Promise<{ message: string; booking: AdminBookingData }> {

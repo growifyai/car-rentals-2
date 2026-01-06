@@ -270,3 +270,20 @@ div[onclick]:not([role]):not(input):not(button):not(a) {
   cursor: pointer !important;
 }
 
+/* Mobile responsive tables */
+@media (max-width: 640px) {
+  .overflow-x-auto {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  table {
+    font-size: 0.875rem;
+  }
+  
+  th, td {
+    padding: 0.5rem !important;
+    white-space: nowrap;
+  }
+}
+

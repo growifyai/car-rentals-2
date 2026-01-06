@@ -18,7 +18,8 @@ import {
   Download,
   Plus,
   Trash2,
-  Phone
+  Phone,
+  Share2
 } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -32,12 +33,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { fetchAdminBookings, verifyBooking, startBooking, completeBooking, fetchAdminOfflineBookings, createAdminBooking, deleteAdminBooking, type AdminBookingData } from "@/lib/admin";
+import { fetchAdminBookings, verifyBooking, startBooking, completeBooking } from "@/lib/admin";
 import { apiFetch } from "@/lib/api-client";
-import { fetchCars } from "@/lib/cars";
-import type { CarCardData } from "@/types/cars";
 import { getApiBaseUrl } from "@/lib/env";
 import { toast } from "sonner";
 
@@ -142,23 +139,6 @@ export function AdminBookingsManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"verify" | "start" | "complete" | "view">("view");
 
-  // Admin bookings (offline walk-in customers) state
-  const [activeTab, setActiveTab] = useState("normal");
-  const [adminBookings, setAdminBookings] = useState<AdminBookingData[]>([]);
-  const [isLoadingAdminBookings, setIsLoadingAdminBookings] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [cars, setCars] = useState<CarCardData[]>([]);
-  const [newBooking, setNewBooking] = useState({
-    customerName: "",
-    customerMobile: "",
-    carId: "",
-    startTime: "",
-    endTime: "",
-    amount: "",
-    notes: ""
-  });
-  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
-
   useEffect(() => {
     if (!token) return;
 
@@ -185,88 +165,6 @@ export function AdminBookingsManagement() {
 
     loadBookings();
   }, [token]);
-
-  // Load admin bookings and cars when switching to admin tab
-  useEffect(() => {
-    if (!token || activeTab !== "admin") return;
-
-    const loadAdminData = async () => {
-      setIsLoadingAdminBookings(true);
-      try {
-        const adminBookingsData = await fetchAdminOfflineBookings(token);
-        setAdminBookings(adminBookingsData || []);
-      } catch (err: unknown) {
-        console.error("Failed to load admin bookings:", err);
-        setAdminBookings([]); // Reset to empty array on error
-        const errorMessage = err instanceof Error ? err.message : "Failed to load admin bookings";
-        toast.error(errorMessage);
-      } finally {
-        setIsLoadingAdminBookings(false);
-      }
-    };
-
-    loadAdminData();
-  }, [token, activeTab]);
-
-  // Load cars on initial mount (for the create modal)
-  useEffect(() => {
-    const loadCars = async () => {
-      try {
-        const carsData = await fetchCars();
-        setCars(carsData);
-      } catch (err) {
-        console.error("Failed to load cars:", err);
-      }
-    };
-    loadCars();
-  }, []);
-
-  const handleCreateAdminBooking = async () => {
-    if (!token) return;
-    if (!newBooking.customerName || !newBooking.customerMobile || !newBooking.carId || !newBooking.startTime || !newBooking.endTime) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    setIsCreatingBooking(true);
-    try {
-      await createAdminBooking({
-        customerName: newBooking.customerName,
-        customerMobile: newBooking.customerMobile,
-        carId: newBooking.carId,
-        startTime: newBooking.startTime,
-        endTime: newBooking.endTime,
-        amount: newBooking.amount ? parseInt(newBooking.amount) : undefined,
-        notes: newBooking.notes || undefined
-      }, token);
-      toast.success("Booking created successfully");
-      setIsCreateModalOpen(false);
-      setNewBooking({ customerName: "", customerMobile: "", carId: "", startTime: "", endTime: "", amount: "", notes: "" });
-      // Reload admin bookings
-      const adminBookingsData = await fetchAdminOfflineBookings(token);
-      setAdminBookings(adminBookingsData);
-    } catch (err: unknown) {
-      console.error("Failed to create booking:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to create booking";
-      toast.error(errorMessage);
-    } finally {
-      setIsCreatingBooking(false);
-    }
-  };
-
-  const handleDeleteAdminBooking = async (bookingId: string) => {
-    if (!token) return;
-    if (!confirm("Are you sure you want to delete this booking? This will free up the time slot.")) return;
-
-    try {
-      await deleteAdminBooking(bookingId, token);
-      toast.success("Booking deleted successfully");
-      setAdminBookings(prev => prev.filter(b => b._id !== bookingId));
-    } catch (err: unknown) {
-      console.error("Failed to delete booking:", err);
-      toast.error("Failed to delete booking");
-    }
-  };
 
   useEffect(() => {
     let filtered = bookings;
@@ -385,22 +283,7 @@ export function AdminBookingsManagement() {
         </div>
       </div>
 
-      {/* Tabs for Normal Bookings and Admin Bookings */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="normal" className="text-sm">
-            <Calendar className="h-4 w-4 mr-2" />
-            Normal Bookings ({filteredBookings.length})
-          </TabsTrigger>
-          <TabsTrigger value="admin" className="text-sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Admin Bookings ({adminBookings.length})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Normal Bookings Tab */}
-        <TabsContent value="normal" className="space-y-6">
-          {/* Filters Section */}
+      {/* Filters Section */}
           <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
             <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-t-lg">
               <CardTitle className="flex items-center space-x-2 text-slate-800 dark:text-slate-200">
@@ -443,7 +326,8 @@ export function AdminBookingsManagement() {
               <CardTitle className="text-slate-800 dark:text-slate-200">All Bookings</CardTitle>
             </CardHeader>
             <CardContent className="px-6 py-0">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-6 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
                 <Table>
                   <TableHeader className="bg-slate-50 dark:bg-slate-800">
                     <TableRow className="border-slate-200 dark:border-slate-700">
@@ -481,7 +365,7 @@ export function AdminBookingsManagement() {
                           </Badge>
                         </TableCell>
                         <TableCell className="py-4 text-slate-600 dark:text-slate-400">
-                          {new Date(booking.startTime).toLocaleDateString()}
+                          {new Date(booking.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                         </TableCell>
                         <TableCell className="py-4">
                           <span className="font-semibold text-green-600 dark:text-green-400">
@@ -538,6 +422,7 @@ export function AdminBookingsManagement() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               {filteredBookings.length === 0 && (
@@ -554,206 +439,6 @@ export function AdminBookingsManagement() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Admin Bookings Tab */}
-        <TabsContent value="admin" className="space-y-6">
-          {/* Header with Create Button */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Offline Walk-in Bookings</h2>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Create bookings for customers who book in person or by phone. These bookings block car availability.
-              </p>
-            </div>
-            <Button onClick={() => setIsCreateModalOpen(true)} className="bg-green-600 hover:bg-green-700 text-white">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Booking
-            </Button>
-          </div>
-
-          {/* Admin Bookings Table */}
-          <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
-            <CardContent className="px-6 py-0">
-              {isLoadingAdminBookings ? (
-                <div className="py-12 text-center">
-                  <p className="text-slate-500">Loading admin bookings...</p>
-                </div>
-              ) : adminBookings.length === 0 ? (
-                <div className="text-center py-12">
-                  <Calendar className="h-12 w-12 mx-auto text-slate-400 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-400 mb-2">No admin bookings</h3>
-                  <p className="text-slate-500 dark:text-slate-500">
-                    Click "Add Booking" to create a booking for a walk-in customer.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-slate-50 dark:bg-slate-800">
-                      <TableRow className="border-slate-200 dark:border-slate-700">
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Customer</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Car</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Start Time</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">End Time</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Amount</TableHead>
-                        <TableHead className="text-slate-700 dark:text-slate-300 font-semibold py-4">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {adminBookings.map((booking) => (
-                        <TableRow key={booking._id} className="border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <TableCell className="py-4">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-slate-900 dark:text-white mb-1">{booking.customerName}</p>
-                              <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center">
-                                <Phone className="h-3 w-3 mr-1" />
-                                {booking.customerMobile}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <p className="font-semibold text-slate-900 dark:text-white">
-                              {booking.carId?.carName || "Unknown Car"}
-                            </p>
-                          </TableCell>
-                          <TableCell className="py-4 text-slate-600 dark:text-slate-400">
-                            {new Date(booking.startTime).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="py-4 text-slate-600 dark:text-slate-400">
-                            {new Date(booking.endTime).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="font-semibold text-green-600 dark:text-green-400">
-                              ₹{(booking.amount || 0).toLocaleString()}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteAdminBooking(booking._id)}
-                              className="hover:bg-red-50 hover:border-red-300 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Create Admin Booking Modal - Using Dialog for proper centering */}
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="sm:max-w-lg p-0">
-          <DialogHeader className="p-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-            <DialogTitle>Add Offline Booking</DialogTitle>
-          </DialogHeader>
-          <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="customerName">Customer Name *</Label>
-                <Input
-                  id="customerName"
-                  value={newBooking.customerName}
-                  onChange={(e) => setNewBooking({ ...newBooking, customerName: e.target.value })}
-                  placeholder="John Doe"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerMobile">Mobile Number *</Label>
-                <Input
-                  id="customerMobile"
-                  value={newBooking.customerMobile}
-                  onChange={(e) => setNewBooking({ ...newBooking, customerMobile: e.target.value })}
-                  placeholder="+91 12345 67890"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="carId">Select Car *</Label>
-              <Select value={newBooking.carId} onValueChange={(value) => setNewBooking({ ...newBooking, carId: value })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a car..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {cars.length === 0 ? (
-                    <SelectItem value="loading" disabled>Loading cars...</SelectItem>
-                  ) : (
-                    cars.map((car) => (
-                      <SelectItem key={car.id} value={car.id}>
-                        {car.name} {car.model && `(${car.model})`}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="startTime">Start Time *</Label>
-                <div className="relative">
-                  <Input
-                    id="startTime"
-                    type="datetime-local"
-                    value={newBooking.startTime}
-                    onChange={(e) => setNewBooking({ ...newBooking, startTime: e.target.value })}
-                    className="w-full pr-10"
-                  />
-                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endTime">End Time *</Label>
-                <div className="relative">
-                  <Input
-                    id="endTime"
-                    type="datetime-local"
-                    value={newBooking.endTime}
-                    onChange={(e) => setNewBooking({ ...newBooking, endTime: e.target.value })}
-                    className="w-full pr-10"
-                  />
-                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (Optional)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={newBooking.amount}
-                onChange={(e) => setNewBooking({ ...newBooking, amount: e.target.value })}
-                placeholder="Enter amount paid/to be paid"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                value={newBooking.notes}
-                onChange={(e) => setNewBooking({ ...newBooking, notes: e.target.value })}
-                placeholder="Any additional notes..."
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter className="p-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateAdminBooking} disabled={isCreatingBooking} className="bg-green-600 hover:bg-green-700">
-              {isCreatingBooking ? "Creating..." : "Create Booking"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Action Modals */}
       <BookingActionModal
@@ -843,6 +528,68 @@ function BookingActionModal({
     }
   };
 
+  const handleShareReceiptWhatsApp = async (bookingId: string) => {
+    if (!token) {
+      toast.error("Please login to share receipt");
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const receiptUrl = `${getApiBaseUrl()}/api/bookings/${bookingId}/receipt`;
+
+      const response = await fetch(receiptUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch receipt' }));
+        throw new Error(errorData.error || 'Failed to fetch receipt');
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], `receipt-${bookingId}.pdf`, { type: 'application/pdf' });
+
+      // Check if Web Share API is supported (works on mobile)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Booking Receipt',
+          text: `Receipt for booking ${bookingId}`,
+        });
+        toast.success("Receipt shared successfully");
+      } else {
+        // Fallback for desktop: Download the PDF first, then open WhatsApp
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `receipt-${bookingId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        // Wait a moment for download to start, then open WhatsApp
+        setTimeout(() => {
+          const phoneNumber = booking?.mobile || '';
+          const message = encodeURIComponent(`Hi! I'm sharing the receipt for booking #${bookingId}. The PDF has been downloaded to your device. Please attach it to this chat.`);
+          const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+          window.open(whatsappUrl, '_blank');
+          toast.success("Receipt downloaded! Opening WhatsApp - please attach the downloaded PDF.");
+        }, 500);
+      }
+    } catch (error: unknown) {
+      console.error("Error sharing receipt:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to share receipt";
+      toast.error(errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (!booking) return null;
 
   const renderContent = () => {
@@ -906,11 +653,11 @@ function BookingActionModal({
                     </div>
                     <div>
                       <p className="text-xs text-slate-400 mb-1">Start Time</p>
-                      <p className="text-sm font-medium text-white">{new Date(booking.startTime).toLocaleString()}</p>
+                      <p className="text-sm font-medium text-white">{new Date(booking.startTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-400 mb-1">End Time</p>
-                      <p className="text-sm font-medium text-white">{new Date(booking.endTime).toLocaleString()}</p>
+                      <p className="text-sm font-medium text-white">{new Date(booking.endTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-400 mb-1">Total Price</p>
@@ -946,14 +693,24 @@ function BookingActionModal({
                   <p className="text-sm text-slate-300">
                     Download the advance payment receipt. The remaining amount must be paid at the time of vehicle pickup.
                   </p>
-                  <Button
-                    onClick={() => handleDownloadReceipt(booking._id)}
-                    disabled={isDownloading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white border-2 border-white"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    {isDownloading ? "Downloading..." : "Download Receipt PDF"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleDownloadReceipt(booking._id)}
+                      disabled={isDownloading}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white border-2 border-white"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {isDownloading ? "Downloading..." : "Download Receipt PDF"}
+                    </Button>
+                    <Button
+                      onClick={() => handleShareReceiptWhatsApp(booking._id)}
+                      disabled={isDownloading}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white border-2 border-white"
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share on WhatsApp
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -975,7 +732,7 @@ function BookingActionModal({
                     </div>
                     <div>
                       <p className="text-xs text-slate-400 mb-1">License Expiry Date</p>
-                      <p className="text-sm font-medium text-white">{new Date(booking.licenseExpiryDate).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-white">{new Date(booking.licenseExpiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                     </div>
                   </div>
                 </div>
@@ -1227,7 +984,8 @@ function BookingActionModal({
             position: 'relative',
             maxHeight: '95vh',
             height: '95vh',
-            width: '60%'
+            width: '90%',
+            maxWidth: '60rem'
           }}
         >
           {/* Header - Fixed */}

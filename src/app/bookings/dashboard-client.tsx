@@ -187,7 +187,7 @@ export function BookingsDashboardClient() {
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">Start Date</p>
                     </div>
-                    <p className="text-sm font-semibold ml-6">{new Date(booking.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-sm font-semibold ml-6">{new Date(booking.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">

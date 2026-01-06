@@ -145,7 +145,8 @@ export function EditCarDialog({ car, onCarUpdated }: EditCarDialogProps) {
               position: 'relative',
               maxHeight: '95vh',
               height: '95vh',
-              width: '60%'
+              width: '90%',
+              maxWidth: '60rem'
             }}
           >
             {/* Header - Fixed */}

@@ -197,6 +197,8 @@ export function AdminUpdatesManagement() {
             <CardTitle>All Updates</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -229,17 +231,17 @@ export function AdminUpdatesManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {new Date(update.createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
+                      {new Date(update.createdAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
                         year: "numeric",
                       })}
                     </TableCell>
                     <TableCell>
                       {update.expiryDate
-                        ? new Date(update.expiryDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
+                        ? new Date(update.expiryDate).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
                             year: "numeric",
                           })
                         : "No expiry"}
@@ -266,6 +268,8 @@ export function AdminUpdatesManagement() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </div>
           </CardContent>
         </Card>
       )}

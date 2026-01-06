@@ -129,7 +129,7 @@ export function AdminDashboardClient() {
               </div>
               <div className="text-sm text-muted-foreground">
                 <p>
-                  {new Date(booking.startTime).toLocaleString()} · {booking.duration} hrs
+                  {new Date(booking.startTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {booking.duration} hrs
                 </p>
               </div>
             </CardHeader>

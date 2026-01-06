@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
-  TrendingUp, 
-  Car, 
-  Calendar, 
-  DollarSign, 
-  Clock, 
-  CheckCircle, 
+import {
+  TrendingUp,
+  Car,
+  Calendar,
+  DollarSign,
+  Clock,
+  CheckCircle,
   AlertCircle
 } from "lucide-react";
 
@@ -38,7 +38,7 @@ export function AdminDashboardOverview() {
     const loadDashboardData = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const statsResponse = await fetchAdminStats(token);
         setStats(statsResponse);

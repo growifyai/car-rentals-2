@@ -216,7 +216,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
 
       const finalCheckData = await finalCheck.json();
       if (!finalCheckData.available) {
-        toast.error(`Car is no longer available. Next available: ${finalCheckData.nextAvailableStartTime ? new Date(finalCheckData.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
+        toast.error(`Car is no longer available. Next available: ${finalCheckData.nextAvailableStartTime ? new Date(finalCheckData.nextAvailableStartTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}`);
         setAvailabilityInfo(finalCheckData);
         return;
       }
@@ -454,7 +454,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
       setAvailabilityInfo(data);
 
       if (!data.available) {
-        toast.error(`Car is not available for the selected time. Next available: ${data.nextAvailableStartTime ? new Date(data.nextAvailableStartTime).toLocaleString() : 'N/A'}`);
+        toast.error(`Car is not available for the selected time. Next available: ${data.nextAvailableStartTime ? new Date(data.nextAvailableStartTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}`);
       }
     } catch (error) {
       console.error('Availability check error:', error);
@@ -695,7 +695,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                         <AlertDescription>
                           <p className="font-semibold mb-2" style={{ color: '#991b1b' }}>Car is not available for the selected time.</p>
                           {availabilityInfo.nextAvailableStartTime && (
-                            <p className="text-sm" style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                            <p className="text-sm" style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                           )}
                           {availabilityInfo.maxDurationHours !== null && availabilityInfo.maxDurationHours !== undefined && availabilityInfo.maxDurationHours > 0 && (
                             <p className="text-sm" style={{ color: '#7f1d1d' }}>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>
@@ -1008,7 +1008,7 @@ export function BookingForm({ car, onBookingSuccess, initialWithDriver = false }
                     <AlertDescription>
                       <p className="font-semibold mb-2" style={{ color: '#991b1b' }}>Car is not available for the selected time.</p>
                       {availabilityInfo.nextAvailableStartTime && (
-                        <p style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString()}</p>
+                        <p style={{ color: '#7f1d1d' }}>Next available: {new Date(availabilityInfo.nextAvailableStartTime).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                       )}
                       {availabilityInfo.maxDurationHours && (
                         <p style={{ color: '#7f1d1d' }}>Maximum duration available: {availabilityInfo.maxDurationHours} hours</p>

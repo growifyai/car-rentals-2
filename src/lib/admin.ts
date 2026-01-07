@@ -159,6 +159,7 @@ export interface AdminBookingData {
   totalAmount: number;
   advancedAmount?: number;
   discount?: number;
+  paymentMode?: string;
   additionalFee1Name?: string;
   additionalFee1Amount?: number;
   additionalFee2Name?: string;
@@ -203,6 +204,7 @@ export async function createAdminBooking(
     totalAmount: number;
     advancedAmount?: number;
     discount?: number;
+    paymentMode?: string;
     notes?: string;
     additionalFee1Name?: string;
     additionalFee1Amount?: number;

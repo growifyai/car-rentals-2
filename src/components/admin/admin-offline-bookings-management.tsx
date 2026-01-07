@@ -174,6 +174,7 @@ export function AdminOfflineBookingsManagement() {
         totalAmount: newBooking.totalAmount ? parseFloat(newBooking.totalAmount) : 0,
         advancedAmount: newBooking.advancedAmount ? parseFloat(newBooking.advancedAmount) : 0,
         discount: newBooking.discount ? parseFloat(newBooking.discount) : 0,
+        paymentMode: newBooking.paymentMode,
         notes: newBooking.notes || undefined,
         additionalFee1Name: newBooking.additionalFee1Name || undefined,
         additionalFee1Amount: newBooking.additionalFee1Amount ? parseFloat(newBooking.additionalFee1Amount) : undefined,
@@ -1110,6 +1111,14 @@ export function AdminOfflineBookingsManagement() {
                     <div className="flex justify-between items-center text-sm mb-2">
                       <span className="text-slate-600 dark:text-slate-400">Already Paid:</span>
                       <span className="font-semibold text-green-600">₹{((selectedBooking as any).paidAmount || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm mb-2">
+                      <span className="text-slate-600 dark:text-slate-400">Payment Mode:</span>
+                      <span className="font-semibold">
+                        {(selectedBooking as any).paymentMode === 'cash' ? 'Cash' : 
+                         (selectedBooking as any).paymentMode === 'upi' ? 'UPI' : 
+                         (selectedBooking as any).paymentMode === 'bank_transfer' ? 'Bank Transfer' : 'Cash'}
+                      </span>
                     </div>
                     <div className="border-t border-slate-200 dark:border-slate-700 mt-3 pt-3 flex justify-between items-center">
                       <span className="font-semibold text-base">Balance:</span>

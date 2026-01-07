@@ -159,7 +159,7 @@ export function AdminCustomersManagement() {
     if (!token) return;
 
     // Validation
-    if (!formData.fullName || !formData.mobile || !formData.email || !formData.drivingLicenseNumber || !formData.licenseExpiryDate) {
+    if (!formData.fullName || !formData.mobile || !formData.drivingLicenseNumber || !formData.licenseExpiryDate) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -651,13 +651,13 @@ function CustomerFormContent({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address *</Label>
+            <Label htmlFor="email">Email Address</Label>
             <Input
               id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="Enter your email"
+              placeholder="Enter your email (optional)"
             />
           </div>
 
